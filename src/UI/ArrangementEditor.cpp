@@ -1,12 +1,11 @@
 #include "UI/ArrangementEditor.h"
 
+#include <QFileInfo>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
 
 #include <algorithm>
-
-#include "Core/SongTime.h"
 
 namespace myvocal {
 
@@ -40,10 +39,7 @@ void ArrangementEditor::setPlayheadMs(qint64 ms)
     update();
 }
 
-qint64 ArrangementEditor::playheadMs() const noexcept
-{
-    return m_playheadMs;
-}
+qint64 ArrangementEditor::playheadMs() const noexcept { return m_playheadMs; }
 
 void ArrangementEditor::setTrackHeight(int pixels)
 {
@@ -72,20 +68,17 @@ int ArrangementEditor::yForTrack(int trackIndex) const
 
 void ArrangementEditor::updateScrollRanges()
 {
-    int trackCount = 1;
-    if (m_project) {
-        trackCount = std::max(1, m_project->tracks().size());
-    }
-
-    const int contentHeight = trackCount * m_trackHeight;
-    verticalScrollBar()->setRange(0, std::max(0, contentHeight - viewport()->height()));
+    const int trackCount = m_project ? std::max(1, m_project->tracks().size()) : 1;
+    verticalScrollBar()->setRange(0,
+        std::max(0, trackCount * m_trackHeight - viewport()->height()));
 
     qint64 maxMs = 60000;
     if (m_project) {
         for (const auto& track : m_project->tracks()) {
             for (const auto& note : track.notes()) {
                 maxMs = std::max(maxMs, qRound64(
-                    m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0));
+                    m_project->tempoMap().tickToSeconds(
+                        note.getEndTick(), m_project->ppq()) * 1000.0));
             }
         }
         for (const auto& clip : m_project->audioClips()) {
@@ -94,7 +87,8 @@ void ArrangementEditor::updateScrollRanges()
     }
 
     const int contentWidth = qRound(maxMs / 1000.0 * m_pixelsPerSecond) + 800;
-    horizontalScrollBar()->setRange(0, std::max(0, contentWidth - viewport()->width()));
+    horizontalScrollBar()->setRange(0,
+        std::max(0, contentWidth - viewport()->width()));
 }
 
 void ArrangementEditor::paintEvent(QPaintEvent*)
@@ -104,20 +98,21 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
 
     const int scrollX = horizontalScrollBar()->value();
     const int scrollY = verticalScrollBar()->value();
-    const qint64 maxMs = qRound64((scrollX + viewport()->width()) / m_pixelsPerSecond * 1000.0);
-
+    const qint64 endMs = qRound64(
+        (scrollX + viewport()->width()) / m_pixelsPerSecond * 1000.0);
     const qint64 beatMs = m_project
-        ? qRound64(60000.0 / m_project->tempoMap().bpm())
-        : 500;
+        ? qRound64(60000.0 / m_project->tempoMap().bpm()) : 500;
     const qint64 barMs = beatMs * 4;
 
     if (beatMs > 0) {
-        const qint64 first = std::max<qint64>(0, scrollX / m_pixelsPerSecond * 1000.0 / beatMs - 2) * beatMs;
-        for (qint64 ms = first; ms <= maxMs + beatMs; ms += beatMs) {
+        const qint64 firstMs = std::max<qint64>(0,
+            qRound64(scrollX / m_pixelsPerSecond * 1000.0) / beatMs - 2) * beatMs;
+        for (qint64 ms = firstMs; ms <= endMs + beatMs; ms += beatMs) {
             const double x = ms / 1000.0 * m_pixelsPerSecond - scrollX;
             if (x < 0 || x > viewport()->width()) continue;
             const bool bar = barMs > 0 && ms % barMs == 0;
-            p.setPen(QPen(bar ? QColor("#4d535c") : QColor("#292e34"), bar ? 1.5 : 1));
+            p.setPen(QPen(bar ? QColor("#4d535c") : QColor("#292e34"),
+                          bar ? 1.5 : 1));
             p.drawLine(QPointF(x, 0), QPointF(x, viewport()->height()));
         }
     }
@@ -129,20 +124,25 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
         p.fillRect(0, y, viewport()->width(), m_trackHeight,
                    i % 2 == 0 ? QColor("#171a1e") : QColor("#14171a"));
         p.setPen(QColor("#2b3036"));
-        p.drawLine(0, y + m_trackHeight - 1, viewport()->width(), y + m_trackHeight - 1);
+        p.drawLine(0, y + m_trackHeight - 1,
+                   viewport()->width(), y + m_trackHeight - 1);
 
         const auto& track = m_project->tracks()[i];
         for (const auto& note : track.notes()) {
-            const double startMs = m_project->tempoMap().tickToSeconds(note.getStartTick(), m_project->ppq()) * 1000.0;
-            const double endMs = m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0;
+            const double startMs = m_project->tempoMap().tickToSeconds(
+                note.getStartTick(), m_project->ppq()) * 1000.0;
+            const double endNoteMs = m_project->tempoMap().tickToSeconds(
+                note.getEndTick(), m_project->ppq()) * 1000.0;
             const int x = qRound(startMs / 1000.0 * m_pixelsPerSecond) - scrollX;
-            const int w = std::max(2, qRound((endMs - startMs) / 1000.0 * m_pixelsPerSecond));
-            const QRect noteRect(x, y + 6, w, m_trackHeight - 14);
+            const int w = std::max(2, qRound(
+                (endNoteMs - startMs) / 1000.0 * m_pixelsPerSecond));
+            const QRect rect(x, y + 6, w, m_trackHeight - 14);
             p.setBrush(track.muted() ? QColor("#4b4e54") : QColor("#3c6fae"));
             p.setPen(QColor("#6b94c0"));
-            p.drawRoundedRect(noteRect, 3, 3);
+            p.drawRoundedRect(rect, 3, 3);
             p.setPen(Qt::white);
-            p.drawText(noteRect.adjusted(5, 0, -5, 0), Qt::AlignVCenter | Qt::AlignLeft, note.getLyric());
+            p.drawText(rect.adjusted(5, 0, -5, 0),
+                       Qt::AlignVCenter | Qt::AlignLeft, note.getLyric());
         }
     }
 
@@ -160,11 +160,13 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
         p.setPen(QColor("#7fa58a"));
         p.drawRoundedRect(rect, 3, 3);
         p.setPen(Qt::white);
-        p.drawText(rect.adjusted(5, 0, -5, 0), Qt::AlignVCenter | Qt::AlignLeft,
-                   QStringLiteral("%1").arg(QFileInfo(clip.path).fileName()));
+        p.drawText(rect.adjusted(5, 0, -5, 0),
+                   Qt::AlignVCenter | Qt::AlignLeft,
+                   QFileInfo(clip.path).fileName());
     }
 
-    const int playheadX = qRound(m_playheadMs / 1000.0 * m_pixelsPerSecond) - scrollX;
+    const int playheadX = qRound(
+        m_playheadMs / 1000.0 * m_pixelsPerSecond) - scrollX;
     p.setPen(QPen(QColor("#ff5b6e"), 2));
     p.drawLine(playheadX, 0, playheadX, viewport()->height());
 }
