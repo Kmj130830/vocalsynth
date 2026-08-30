@@ -4,15 +4,27 @@
 #include <QPoint>
 #include <QRect>
 #include <QVector>
+
 #include "Core/Project.h"
+
+class QLineEdit;
 
 namespace myvocal {
 
 enum class EditTool {
-    Select, Pen, PenPlus, Eraser, Knife, Pitch, PitchLine, Vibrato, Zoom, Pan
+    Select,
+    Pen,
+    PenPlus,
+    Eraser,
+    Knife,
+    Pitch,
+    PitchLine,
+    Vibrato,
+    Zoom,
+    Pan
 };
 
-class PianoRollEditor : public QAbstractScrollArea {
+class PianoRollEditor final : public QAbstractScrollArea {
     Q_OBJECT
 public:
     explicit PianoRollEditor(Project* project, QWidget* parent = nullptr);
@@ -59,10 +71,19 @@ private:
     void createNote(const QPoint& pos);
     void deleteNoteAt(const QPoint& pos);
     void splitNoteAt(const QPoint& pos);
+    void beginLyricEdit(Note& note);
+    void finishLyricEdit(bool accept);
+    void appendTypedLyric(const QString& text);
+    void editPitchAt(const QPoint& pos);
+    void updatePitchFromMouse(const QPoint& pos);
+    void toggleVibratoAt(const QPoint& pos);
+    void avoidOverlaps(qint64 id, qint64 newStart, qint64 newEnd, qint64& adjustedStart) const;
     void invalidate();
     void updateScrollRanges();
 
-    Project* m_project;
+    Project* m_project{nullptr};
+    QLineEdit* m_lyricEditor{nullptr};
+    qint64 m_editingLyricId{-1};
     int m_activeTrack{0};
     EditTool m_tool{EditTool::Pen};
     qint64 m_playhead{0};
@@ -71,17 +92,18 @@ private:
     qint64 m_gridTicks{120};
     double m_pxPerBeat{110.0};
     int m_rowHeight{22};
-    int m_topMidi{108};
+    int m_topMidi{84};
     bool m_dragging{false};
     bool m_resizing{false};
     bool m_panning{false};
-    bool m_zooming{false};
+    bool m_pitchEditing{false};
     QPoint m_lastPos;
     qint64 m_dragStartTick{0};
     int m_dragStartPitch{60};
     QVector<qint64> m_dragIds;
     qint64 m_resizeId{-1};
     qint64 m_resizeOriginalEnd{0};
+    qint64 m_pitchNoteId{-1};
 };
 
 }
