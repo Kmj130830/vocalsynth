@@ -3,6 +3,11 @@
 #include <QDialog>
 #include <QString>
 
+class QComboBox;
+class QDoubleSpinBox;
+class QLineEdit;
+class QSpinBox;
+
 namespace myvocal {
 
 class SingerManager;
@@ -23,13 +28,13 @@ public:
 
 private:
     QString* m_resampler;
-    class QLineEdit* m_resamplerEdit{nullptr};
-    class QLineEdit* m_voiceBanksEdit{nullptr};
-    class QComboBox* m_singerCombo{nullptr};
-    class QComboBox* m_phonemizerCombo{nullptr};
-    class QDoubleSpinBox* m_bpmSpin{nullptr};
-    class QSpinBox* m_snapSpin{nullptr};
-    class QSpinBox* m_gridSpin{nullptr};
+    QLineEdit* m_resamplerEdit{nullptr};
+    QLineEdit* m_voiceBanksEdit{nullptr};
+    QComboBox* m_singerCombo{nullptr};
+    QComboBox* m_phonemizerCombo{nullptr};
+    QDoubleSpinBox* m_bpmSpin{nullptr};
+    QSpinBox* m_snapSpin{nullptr};
+    QSpinBox* m_gridSpin{nullptr};
 };
 
 }
