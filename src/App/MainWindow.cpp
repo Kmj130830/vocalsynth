@@ -130,9 +130,9 @@ void MainWindow::connectUi()
     connect(m_toolbar, &MainToolBar::toolChanged,
             this, &MainWindow::setTool);
     connect(m_toolbar, &MainToolBar::snapToggled,
-            m_editor, &PianoRollEditor::setSnapEnabled);
+            this, [this](bool enabled) { m_editor->setSnapEnabled(enabled); });
     connect(m_toolbar, &MainToolBar::gridToggled,
-            m_editor, &PianoRollEditor::setShowGrid);
+            this, [this](bool enabled) { m_editor->setShowGrid(enabled); });
 
     connect(m_trackPanel, &TrackPanel::trackSelected,
             this, &MainWindow::selectTrack);
@@ -426,6 +426,13 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
         return;
     }
 
+    if (m_editor) {
+        disconnect(m_toolbar, &MainToolBar::snapToggled,
+                   m_editor, &PianoRollEditor::setSnapEnabled);
+        disconnect(m_toolbar, &MainToolBar::gridToggled,
+                   m_editor, &PianoRollEditor::setShowGrid);
+    }
+
     m_project = std::move(project);
     refreshVoiceBanks();
 
@@ -466,6 +473,10 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     m_trackPanel->refresh();
     m_editor->setActiveTrack(0);
 
+    connect(m_toolbar, &MainToolBar::snapToggled,
+            m_editor, &PianoRollEditor::setSnapEnabled);
+    connect(m_toolbar, &MainToolBar::gridToggled,
+            m_editor, &PianoRollEditor::setShowGrid);
     connect(m_trackPanel, &TrackPanel::trackSelected,
             this, &MainWindow::selectTrack);
     connect(m_trackPanel, &TrackPanel::trackSettingsChanged,
