@@ -1,0 +1,5 @@
+-DWIN32
+-o
+C:/Users/Win11/Downloads/MyVocalSynth/build/include/Audio/moc_AudioEngine.cpp
+C:/Users/Win11/Downloads/MyVocalSynth/include/Audio/AudioEngine.h
+-DWIN32

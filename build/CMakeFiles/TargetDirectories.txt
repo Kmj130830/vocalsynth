@@ -1,0 +1,9 @@
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/MyVocalSynth.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/MyVocalSynthTests.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/test.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/edit_cache.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/rebuild_cache.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/list_install_components.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/install.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/install/local.dir
+C:/Users/Win11/Downloads/MyVocalSynth/build/CMakeFiles/install/strip.dir

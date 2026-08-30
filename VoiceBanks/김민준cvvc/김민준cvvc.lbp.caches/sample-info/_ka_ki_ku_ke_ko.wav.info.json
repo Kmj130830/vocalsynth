@@ -1,0 +1,21 @@
+{
+    "name": "ka_ki_ku_ke_ko.wav",
+    "file": "ka_ki_ku_ke_ko.wav",
+    "convertedFile": null,
+    "moduleName": "",
+    "sampleRate": 44100.0,
+    "maxSampleRate": 44100,
+    "normalize": false,
+    "normalizeRatio": null,
+    "channels": 1,
+    "length": 265627,
+    "lengthMillis": 6023.2876,
+    "chunkSize": 265627,
+    "chunkCount": 1,
+    "hasSpectrogram": true,
+    "hasPower": false,
+    "powerChannels": 1,
+    "hasFundamental": false,
+    "lastModified": 1781423386052,
+    "algorithmVersion": 4
+}

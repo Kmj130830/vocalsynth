@@ -1,0 +1,4 @@
+#include "Singer/Singer.h"
+#include "Singer/CharacterParser.h"
+#include <QDirIterator>
+namespace myvocal { Singer::Singer(const std::filesystem::path&r):m_root(r){} bool Singer::load(){m_info={};m_info.path=QString::fromStdString(m_root.string());CharacterParser cp;cp.load(m_root/"character.txt");m_info.name=cp.value("name");m_info.author=cp.value("author");m_info.web=cp.value("web");m_info.image=cp.value("image");m_info.sample=cp.value("sample");if(m_info.name.isEmpty())m_info.name=QString::fromStdString(m_root.filename().string());m_valid=m_oto.load(m_root/"oto.ini");return m_valid;}const SingerInfo&Singer::info()const noexcept{return m_info;}const OtoParser&Singer::oto()const noexcept{return m_oto;}bool Singer::isValid()const noexcept{return m_valid;}std::filesystem::path Singer::path()const{return m_root;} }

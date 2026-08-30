@@ -1,0 +1,3 @@
+#include "Audio/AudioEngine.h"
+#include <QUrl>
+namespace myvocal { AudioEngine::AudioEngine(QObject*p):QObject(p){m_player.setAudioOutput(&m_output);connect(&m_player,&QMediaPlayer::positionChanged,this,&AudioEngine::positionChanged);} void AudioEngine::load(const QString&p){m_player.setSource(QUrl::fromLocalFile(p));}void AudioEngine::play(){m_player.play();}void AudioEngine::pause(){m_player.pause();}void AudioEngine::stop(){m_player.stop();}void AudioEngine::seek(qint64 ms){m_player.setPosition(ms);}bool AudioEngine::isPlaying()const{return m_player.playbackState()==QMediaPlayer::PlayingState;}qint64 AudioEngine::position()const{return m_player.position();} }

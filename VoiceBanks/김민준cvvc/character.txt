@@ -1,0 +1,3 @@
+﻿name=ばかりお CVVC
+image=profile.png
+author=KMJ

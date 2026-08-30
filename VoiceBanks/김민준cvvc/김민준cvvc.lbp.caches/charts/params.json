@@ -1,0 +1,66 @@
+{
+    "algorithmVersion": 7,
+    "painterConfig": {
+        "canvasResolution": {
+            "default": 40,
+            "step": 20
+        },
+        "maxDataChunkSize": 441000,
+        "amplitude": {
+            "resampleDownToHz": 44100,
+            "normalize": false,
+            "unitSize": 60,
+            "intensityAccuracy": 500,
+            "yAxisBlankRate": 0.1,
+            "color": "#FFF2F2F2",
+            "backgroundColor": "#00000000"
+        },
+        "spectrogram": {
+            "enabled": true,
+            "heightWeight": 0.75,
+            "pointDensity": 2,
+            "standardHopSize": 110,
+            "standardWindowSize": 512,
+            "windowType": "BlackmanHarris",
+            "melScaleStep": 10,
+            "maxFrequency": 20000,
+            "minIntensity": -20,
+            "maxIntensity": 55,
+            "colorPalette": "Plain",
+            "useHighAlphaContrast": true
+        },
+        "power": {
+            "enabled": false,
+            "mergeChannels": true,
+            "heightWeight": 0.5,
+            "unitSize": 60,
+            "windowSize": 300,
+            "minPower": -48.0,
+            "maxPower": 0.0,
+            "intensityAccuracy": 200,
+            "color": "#FFF2F2F2",
+            "backgroundColor": "#00000000"
+        },
+        "fundamental": {
+            "enabled": false,
+            "heightWeight": 0.5,
+            "semitoneResolution": 8,
+            "minFundamental": 130.0,
+            "maxFundamental": 880.0,
+            "semitoneSampleNum": 8,
+            "maxHarmonicFrequency": 5000.0,
+            "erbsStep": 0.1,
+            "minDisplayCorr": 0.0,
+            "maxDisplayCorr": 0.5,
+            "drawReferenceLine": true,
+            "color": "#FFFFC500",
+            "referenceLineColor": "#FF555555",
+            "backgroundColor": "#00000000"
+        },
+        "conversion": {
+            "ffmpegPath": "ffmpeg",
+            "ffmpegArgs": "-acodec pcm_s16le -ac 1 -ar 44100",
+            "useConversionForWav": false
+        }
+    }
+}

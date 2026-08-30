@@ -1,0 +1,16 @@
+# Hashes of file build rules.
+f758c9a29b1e9667195187266c982e2f include/App/moc_MainWindow.cpp
+8262d5e6504780e46c441426666f14fe include/Audio/moc_AudioEngine.cpp
+6e9227ab024bd047e70471290a40432e include/Editor/moc_PianoRollEditor.cpp
+1a3bb48bb021172e9ddd71a4bd340a17 include/Renderer/moc_MoresamplerProcess.cpp
+4195223ac4c5bdf96751da18dba92dcb include/Renderer/moc_RenderWorker.cpp
+cefd4ee41ddf576dd6dad4bd8ed86e84 include/Renderer/moc_Renderer.cpp
+659cc9ea5ad12de2b834ffc74a7c37a9 include/UI/moc_DiagnosticsDialog.cpp
+7af72bdb56c44b17939fc50221becb40 include/UI/moc_LyricEditor.cpp
+f4db9d281251716f3563bf4117a2c60d include/UI/moc_MainToolBar.cpp
+785632f37c52714653bb7fe36d41c027 include/UI/moc_ParameterPanel.cpp
+aacaca923ab095dbc771c001bd3641f4 include/UI/moc_PianoKeyboard.cpp
+e72c879b33b8b91ed7ea54ab933f64ed include/UI/moc_PreferencesDialog.cpp
+bee48feebc6ff9feb510b7b328e5d9b7 include/UI/moc_TrackPanel.cpp
+5e47aba6f85ea102782dd528c5706a6a include/UI/moc_TransportBar.cpp
+aac305e1481ac640925bb30c0c4908ed include/Utils/moc_ShortcutManager.cpp

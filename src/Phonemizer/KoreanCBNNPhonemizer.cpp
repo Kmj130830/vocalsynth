@@ -1,0 +1,4 @@
+#include "Phonemizer/KoreanCBNNPhonemizer.h"
+#include "Phonemizer/AliasResolver.h"
+#include "Singer/Singer.h"
+namespace myvocal { QString KoreanCBNNPhonemizer::name()const{return QStringLiteral("Korean CBNN");} std::vector<Phoneme>KoreanCBNNPhonemizer::process(const std::vector<Note>&notes,const Singer&s){AliasResolver r(s);std::vector<Phoneme>out;for(size_t i=0;i<notes.size();++i){QString l=notes[i].getLyric().trimmed();QStringList candidates{l,"- "+l,"+ "+l};std::optional<OtoEntry>e;QString alias=l;for(const auto&c:candidates)if((e=r.resolve(c))){alias=c;break;}Phoneme p{alias,(double)notes[i].getStartTick(),(double)notes[i].getDurationTick(),0,0,0,0,0,i};if(e){p.preutterance=e->preutterance;p.overlap=e->overlap;p.offset=e->offset;p.consonant=e->consonant;p.cutoff=e->cutoff;}out.push_back(std::move(p));}return out;} }

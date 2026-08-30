@@ -1,0 +1,3 @@
+#include "UI/TransportBar.h"
+#include <QHBoxLayout>
+namespace myvocal { TransportBar::TransportBar(AudioEngine*a,QWidget*p):QWidget(p),m_audio(a){auto*l=new QHBoxLayout(this);auto*play=new QPushButton("Play",this);auto*stop=new QPushButton("Stop",this);m_pos=new QLabel("00:00",this);l->addWidget(play);l->addWidget(stop);l->addWidget(m_pos);connect(play,&QPushButton::clicked,this,&TransportBar::playPause);connect(stop,&QPushButton::clicked,this,&TransportBar::stopPressed);connect(a,&AudioEngine::positionChanged,this,[this](qint64 ms){m_pos->setText(QStringLiteral("%1:%2").arg(ms/60000,2,10,QChar('0')).arg((ms/1000)%60,2,10,QChar('0')));});}}

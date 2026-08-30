@@ -1,0 +1,1 @@
+-IC:/Users/Win11/Downloads/MyVocalSynth/include -isystem C:/Qt/6.11.2/mingw_64/include/QtCore -isystem C:/Qt/6.11.2/mingw_64/include -isystem "C:/Qt/6.11.2/mingw_64/mkspecs/win32-g++" -isystem C:/Qt/6.11.2/mingw_64/include/QtGui

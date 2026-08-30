@@ -1,0 +1,5 @@
+-DWIN32
+-o
+C:/Users/Win11/Downloads/MyVocalSynth/build/include/UI/moc_MainToolBar.cpp
+C:/Users/Win11/Downloads/MyVocalSynth/include/UI/MainToolBar.h
+-DWIN32

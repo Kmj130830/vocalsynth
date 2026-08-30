@@ -1,0 +1,16 @@
+{
+    "tu.wav//waveform//0//0": "_tu.wav_waveform_0_0.png",
+    "tu.wav//spectrogram//0": "_tu.wav_spectrogram_0.png",
+    "fe.wav//waveform//0//0": "_fe.wav_waveform_0_0.png",
+    "fe.wav//spectrogram//0": "_fe.wav_spectrogram_0.png",
+    "o_r.wav//waveform//0//0": "_o_r.wav_waveform_0_0.png",
+    "o_r.wav//spectrogram//0": "_o_r.wav_spectrogram_0.png",
+    "ma_mi_mu_me_mo.wav//waveform//0//0": "_ma_mi_mu_me_mo.wav_waveform_0_0.png",
+    "ma_mi_mu_me_mo.wav//spectrogram//0": "_ma_mi_mu_me_mo.wav_spectrogram_0.png",
+    "sa_shi_su_se_so.wav//waveform//0//0": "_sa_shi_su_se_so.wav_waveform_0_0.png",
+    "sa_shi_su_se_so.wav//spectrogram//0": "_sa_shi_su_se_so.wav_spectrogram_0.png",
+    "na_ni_nu_ne_no.wav//waveform//0//0": "_na_ni_nu_ne_no.wav_waveform_0_0.png",
+    "na_ni_nu_ne_no.wav//spectrogram//0": "_na_ni_nu_ne_no.wav_spectrogram_0.png",
+    "ka_ki_ku_ke_ko.wav//waveform//0//0": "_ka_ki_ku_ke_ko.wav_waveform_0_0.png",
+    "ka_ki_ku_ke_ko.wav//spectrogram//0": "_ka_ki_ku_ke_ko.wav_spectrogram_0.png"
+}

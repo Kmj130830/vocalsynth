@@ -1,0 +1,4 @@
+#include "Phonemizer/HybridJapanesePhonemizer.h"
+#include "Phonemizer/AliasResolver.h"
+#include "Singer/Singer.h"
+namespace myvocal { QString HybridJapanesePhonemizer::name()const{return QStringLiteral("Japanese VCV / CVVC Hybrid");} std::vector<Phoneme>HybridJapanesePhonemizer::process(const std::vector<Note>&notes,const Singer&s){AliasResolver r(s);std::vector<Phoneme>out;for(size_t i=0;i<notes.size();++i){QString lyric=notes[i].getLyric();QStringList candidates; if(i>0)candidates<<QStringLiteral("a ")+lyric; candidates<<lyric;bool found=false;Phoneme p{lyric,static_cast<double>(notes[i].getStartTick()),static_cast<double>(notes[i].getDurationTick()),0,0,0,0,0,i};for(const auto&a:candidates)if(auto e=r.resolve(a)){p.alias=a;p.preutterance=e->preutterance;p.overlap=e->overlap;p.offset=e->offset;p.consonant=e->consonant;p.cutoff=e->cutoff;found=true;break;}if(!found)p.alias=lyric;out.push_back(std::move(p));}return out;} }
