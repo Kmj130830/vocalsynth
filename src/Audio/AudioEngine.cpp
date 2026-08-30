@@ -3,6 +3,8 @@
 #include <QFileInfo>
 #include <QUrl>
 
+#include <algorithm>
+
 namespace myvocal {
 
 AudioEngine::AudioEngine(QObject* parent)
@@ -48,20 +50,20 @@ void AudioEngine::setBackingClips(const QVector<AudioClip>& clips)
 
 void AudioEngine::syncBackingPlayers(qint64 ms, bool start)
 {
-    const int count = std::min(m_backingPlayers.size(), m_clips.size());
-    for (int i = 0, playerIndex = 0; i < m_clips.size(); ++i) {
-        const auto& clip = m_clips[i];
+    int playerIndex = 0;
+    for (const auto& clip : m_clips) {
         if (clip.muted || !QFileInfo::exists(clip.path)) continue;
-        if (playerIndex >= count) break;
+        if (playerIndex >= m_backingPlayers.size()) break;
         auto* player = m_backingPlayers[playerIndex++].get();
         if (!player) continue;
+
         const qint64 local = ms - clip.startMs + clip.offsetMs;
         if (local < 0) {
             player->pause();
-        } else {
-            player->setPosition(local);
-            if (start) player->play();
+            continue;
         }
+        player->setPosition(local);
+        if (start) player->play();
     }
 }
 
