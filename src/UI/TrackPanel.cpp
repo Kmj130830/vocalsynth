@@ -3,8 +3,10 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QPushButton>
 #include <QSlider>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
@@ -14,19 +16,14 @@ namespace myvocal {
 
 namespace {
 const QStringList kPhonemizers = {
-    QStringLiteral("Default CV"),
-    QStringLiteral("Japanese VCV"),
-    QStringLiteral("Japanese CVVC"),
-    QStringLiteral("Hybrid Japanese"),
-    QStringLiteral("Korean VCV"),
-    QStringLiteral("Korean CBNN")
+    QStringLiteral("Default CV"), QStringLiteral("Japanese VCV"),
+    QStringLiteral("Japanese CVVC"), QStringLiteral("Hybrid Japanese"),
+    QStringLiteral("Korean VCV"), QStringLiteral("Korean CBNN")
 };
 }
 
 TrackPanel::TrackPanel(Project* project, SingerManager* singers, QWidget* parent)
-    : QListWidget(parent)
-    , m_project(project)
-    , m_singers(singers)
+    : QListWidget(parent), m_project(project), m_singers(singers)
 {
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSpacing(2);
@@ -45,7 +42,6 @@ void TrackPanel::refresh()
 {
     const int oldRow = currentRow();
     clear();
-
     if (!m_project) {
         return;
     }
@@ -53,18 +49,17 @@ void TrackPanel::refresh()
     for (int i = 0; i < m_project->tracks().size(); ++i) {
         Track& track = m_project->tracks()[i];
         auto* item = new QListWidgetItem(this);
-        item->setSizeHint(QSize(300, 116));
+        item->setSizeHint(QSize(300, 124));
 
         auto* row = new QWidget(this);
         auto* layout = new QVBoxLayout(row);
         layout->setContentsMargins(8, 6, 8, 6);
         layout->setSpacing(4);
 
-        auto* title = new QLabel(row);
-        title->setText(track.name());
-        QFont titleFont = title->font();
-        titleFont.setBold(true);
-        title->setFont(titleFont);
+        auto* title = new QPushButton(row);
+        title->setText(track.name() + (track.muted() ? QStringLiteral("  [MUTE]") : QString()));
+        title->setFlat(true);
+        title->setStyleSheet(QStringLiteral("text-align:left; padding:0; font-weight:600;"));
         layout->addWidget(title);
 
         auto* singer = new QComboBox(row);
@@ -82,7 +77,6 @@ void TrackPanel::refresh()
                                 QString::fromStdWString(s->path().wstring()));
             }
         }
-
         int singerIndex = 0;
         for (int j = 0; j < singer->count(); ++j) {
             if (singer->itemData(j).toString() == track.singerPath()) {
@@ -97,17 +91,13 @@ void TrackPanel::refresh()
 
         auto* phonemizer = new QComboBox(row);
         phonemizer->addItems(kPhonemizers);
-        int phonIndex = phonemizer->findText(track.phonemizer());
-        if (phonIndex < 0) {
-            phonIndex = 0;
-        }
+        const int phonIndex = phonemizer->findText(track.phonemizer());
         {
             const QSignalBlocker blocker(phonemizer);
-            phonemizer->setCurrentIndex(phonIndex);
+            phonemizer->setCurrentIndex(phonIndex < 0 ? 0 : phonIndex);
         }
 
-        auto* controls = new QHBoxLayout();
-        controls->setSpacing(6);
+        auto* controls = new QHBoxLayout;
         auto* mute = new QCheckBox(QStringLiteral("Mute"), row);
         auto* solo = new QCheckBox(QStringLiteral("Solo"), row);
         mute->setChecked(track.muted());
@@ -119,7 +109,7 @@ void TrackPanel::refresh()
         layout->addWidget(phonemizer);
         layout->addLayout(controls);
 
-        auto* level = new QHBoxLayout();
+        auto* level = new QHBoxLayout;
         auto* volumeLabel = new QLabel(QStringLiteral("Vol"), row);
         auto* volume = new QSlider(Qt::Horizontal, row);
         volume->setRange(0, 200);
@@ -136,7 +126,9 @@ void TrackPanel::refresh()
         layout->addLayout(level);
 
         setItemWidget(item, row);
-
+        connect(title, &QPushButton::clicked, this, [this, i] {
+            setCurrentRow(i);
+        });
         connect(singer, &QComboBox::currentIndexChanged,
                 this, [this, i, singer](int index) {
                     if (!m_project || i >= m_project->tracks().size()) {
@@ -151,15 +143,16 @@ void TrackPanel::refresh()
                     if (!m_project || i >= m_project->tracks().size()) {
                         return;
                     }
-                    m_project->tracks()[i].setPhonemizer(
-                        phonemizer->itemText(index));
+                    m_project->tracks()[i].setPhonemizer(phonemizer->itemText(index));
                     emit trackSettingsChanged(i);
                 });
-        connect(mute, &QCheckBox::toggled, this, [this, i](bool value) {
+        connect(mute, &QCheckBox::toggled, this, [this, i, title](bool value) {
             if (!m_project || i >= m_project->tracks().size()) {
                 return;
             }
             m_project->tracks()[i].setMuted(value);
+            title->setText(m_project->tracks()[i].name() +
+                           (value ? QStringLiteral("  [MUTE]") : QString()));
             emit trackSettingsChanged(i);
         });
         connect(solo, &QCheckBox::toggled, this, [this, i](bool value) {
