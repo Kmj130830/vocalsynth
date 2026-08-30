@@ -76,7 +76,7 @@ private:
     void editPitchAt(const QPoint& pos);
     void updatePitchFromMouse(const QPoint& pos);
     void toggleVibratoAt(const QPoint& pos);
-    void constrainMove(qint64 id, qint64& delta) const;
+    void constrainMove(qint64& delta) const;
     void invalidate();
     void updateScrollRanges();
 
