@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21)
 
 project(MyVocalSynth LANGUAGES CXX)
 
@@ -45,6 +45,7 @@ set(SOURCES
     src/UI/LyricEditor.cpp
     src/UI/PreferencesDialog.cpp
     src/UI/DiagnosticsDialog.cpp
+    src/UI/ArrangementEditor.cpp
     src/Undo/UndoManager.cpp
     src/Utils/Logger.cpp
     src/Utils/ShortcutManager.cpp
@@ -53,6 +54,7 @@ set(SOURCES
 set(HEADERS
     include/App/MainWindow.h
     include/Audio/AudioEngine.h
+    include/Core/AudioClip.h
     include/Core/Note.h
     include/Core/Phoneme.h
     include/Core/PitchCurve.h
@@ -83,6 +85,7 @@ set(HEADERS
     include/Singer/Singer.h
     include/Singer/SingerInfo.h
     include/Singer/SingerManager.h
+    include/UI/ArrangementEditor.h
     include/UI/DiagnosticsDialog.h
     include/UI/LyricEditor.h
     include/UI/MainToolBar.h
@@ -105,6 +108,7 @@ set(MOC_HEADERS
     include/Renderer/MoresamplerProcess.h
     include/Renderer/Renderer.h
     include/Renderer/RenderWorker.h
+    include/UI/ArrangementEditor.h
     include/UI/DiagnosticsDialog.h
     include/UI/LyricEditor.h
     include/UI/MainToolBar.h
@@ -136,26 +140,15 @@ target_link_libraries(MyVocalSynth PRIVATE
 )
 
 if(MSVC)
-    target_compile_options(MyVocalSynth PRIVATE
-        /W4
-        /permissive-
-        /Zc:__cplusplus
-    )
+    target_compile_options(MyVocalSynth PRIVATE /W4 /permissive- /Zc:__cplusplus)
 else()
-    target_compile_options(MyVocalSynth PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-    )
+    target_compile_options(MyVocalSynth PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 add_custom_command(TARGET MyVocalSynth POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:MyVocalSynth>/resampler"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:MyVocalSynth>/VoiceBanks"
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "$<TARGET_FILE_DIR:MyVocalSynth>/presets"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:MyVocalSynth>/resampler"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:MyVocalSynth>/VoiceBanks"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:MyVocalSynth>/presets"
 )
 
 enable_testing()
@@ -172,38 +165,15 @@ set(TEST_SOURCES
     src/Singer/OtoParser.cpp
 )
 
-add_executable(MyVocalSynthTests
-    ${TEST_SOURCES}
-)
+add_executable(MyVocalSynthTests ${TEST_SOURCES})
 
-target_include_directories(MyVocalSynthTests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+target_include_directories(MyVocalSynthTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_link_libraries(MyVocalSynthTests PRIVATE
-    Qt6::Core
-    Qt6::Gui
-)
+target_link_libraries(MyVocalSynthTests PRIVATE Qt6::Core Qt6::Gui)
 
-add_test(
-    NAME MyVocalSynthTests
-    COMMAND MyVocalSynthTests
-)
+add_test(NAME MyVocalSynthTests COMMAND MyVocalSynthTests)
 
 include(GNUInstallDirs)
-
-install(
-    TARGETS MyVocalSynth
-    RUNTIME DESTINATION .
-)
-
-install(
-    DIRECTORY resources
-    DESTINATION .
-)
-
-install(
-    DIRECTORY presets
-    DESTINATION .
-    OPTIONAL
-)
+install(TARGETS MyVocalSynth RUNTIME DESTINATION .)
+install(DIRECTORY resources DESTINATION .)
+install(DIRECTORY presets DESTINATION . OPTIONAL)
