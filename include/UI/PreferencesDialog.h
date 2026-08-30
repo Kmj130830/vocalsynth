@@ -5,10 +5,14 @@
 
 namespace myvocal {
 
+class SingerManager;
+
 class PreferencesDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit PreferencesDialog(QString* resampler, QWidget* parent = nullptr);
+    explicit PreferencesDialog(QString* resampler,
+                                SingerManager* singers = nullptr,
+                                QWidget* parent = nullptr);
 
     QString voiceBanksPath() const;
     QString defaultSinger() const;
