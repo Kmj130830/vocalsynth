@@ -1,4 +1,5 @@
 #include "UI/PreferencesDialog.h"
+#include "Singer/SingerManager.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -22,13 +23,15 @@ const QStringList kPhonemizers = {
 };
 }
 
-PreferencesDialog::PreferencesDialog(QString* resampler, QWidget* parent)
+PreferencesDialog::PreferencesDialog(QString* resampler,
+                                     SingerManager* singers,
+                                     QWidget* parent)
     : QDialog(parent), m_resampler(resampler)
 {
     setWindowTitle(QStringLiteral("Preferences"));
     setMinimumWidth(560);
 
-    QSettings settings;
+    const QSettings settings;
     auto* form = new QFormLayout;
 
     m_resamplerEdit = new QLineEdit(
@@ -56,7 +59,20 @@ PreferencesDialog::PreferencesDialog(QString* resampler, QWidget* parent)
 
     m_singerCombo = new QComboBox(this);
     m_singerCombo->setEditable(true);
-    m_singerCombo->setCurrentText(settings.value("defaults/singer").toString());
+    if (singers) {
+        for (const auto& singer : singers->singers()) {
+            m_singerCombo->addItem(
+                singer->info().name,
+                QString::fromStdWString(singer->path().wstring()));
+        }
+    }
+    const QString defaultSinger = settings.value("defaults/singer").toString();
+    int singerIndex = m_singerCombo->findText(defaultSinger);
+    if (singerIndex >= 0) {
+        m_singerCombo->setCurrentIndex(singerIndex);
+    } else {
+        m_singerCombo->setCurrentText(defaultSinger);
+    }
     form->addRow(QStringLiteral("Default Singer"), m_singerCombo);
 
     m_phonemizerCombo = new QComboBox(this);
@@ -97,7 +113,6 @@ PreferencesDialog::PreferencesDialog(QString* resampler, QWidget* parent)
             m_resamplerEdit->setText(path);
         }
     });
-
     connect(voiceBrowse, &QPushButton::clicked, this, [this] {
         const QString path = QFileDialog::getExistingDirectory(
             this, QStringLiteral("Select VoiceBanks directory"));
@@ -105,16 +120,15 @@ PreferencesDialog::PreferencesDialog(QString* resampler, QWidget* parent)
             m_voiceBanksEdit->setText(path);
         }
     });
-
     connect(buttons, &QDialogButtonBox::accepted, this, [this] {
-        QSettings s;
-        s.setValue("renderer/moresampler", m_resamplerEdit->text());
-        s.setValue("voicebanks/path", m_voiceBanksEdit->text());
-        s.setValue("defaults/singer", m_singerCombo->currentText());
-        s.setValue("defaults/phonemizer", m_phonemizerCombo->currentText());
-        s.setValue("defaults/bpm", m_bpmSpin->value());
-        s.setValue("defaults/snap", m_snapSpin->value());
-        s.setValue("defaults/grid", m_gridSpin->value());
+        QSettings settings;
+        settings.setValue("renderer/moresampler", m_resamplerEdit->text());
+        settings.setValue("voicebanks/path", m_voiceBanksEdit->text());
+        settings.setValue("defaults/singer", m_singerCombo->currentText());
+        settings.setValue("defaults/phonemizer", m_phonemizerCombo->currentText());
+        settings.setValue("defaults/bpm", m_bpmSpin->value());
+        settings.setValue("defaults/snap", m_snapSpin->value());
+        settings.setValue("defaults/grid", m_gridSpin->value());
         if (m_resampler) {
             *m_resampler = m_resamplerEdit->text();
         }
