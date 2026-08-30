@@ -4,10 +4,11 @@
 
 namespace myvocal {
 
-class PianoKeyboard : public QWidget {
+class PianoKeyboard final : public QWidget {
     Q_OBJECT
 public:
     explicit PianoKeyboard(QWidget* parent = nullptr);
+
     void setScrollPitch(int midi);
     void setRowHeight(int pixels);
 
@@ -20,8 +21,7 @@ protected:
 
 private:
     int midiAtY(int y) const;
-
-    int m_topMidi{108};
+    int m_topMidi{84};
     int m_rowHeight{22};
 };
 
