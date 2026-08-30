@@ -73,11 +73,10 @@ private:
     void splitNoteAt(const QPoint& pos);
     void beginLyricEdit(Note& note);
     void finishLyricEdit(bool accept);
-    void appendTypedLyric(const QString& text);
     void editPitchAt(const QPoint& pos);
     void updatePitchFromMouse(const QPoint& pos);
     void toggleVibratoAt(const QPoint& pos);
-    void avoidOverlaps(qint64 id, qint64 newStart, qint64 newEnd, qint64& adjustedStart) const;
+    void constrainMove(qint64 id, qint64& delta) const;
     void invalidate();
     void updateScrollRanges();
 
