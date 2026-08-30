@@ -1,4 +1,27 @@
 #pragma once
+
 #include <QToolBar>
+
 #include "Editor/PianoRollEditor.h"
-namespace myvocal { class MainToolBar : public QToolBar { Q_OBJECT public: explicit MainToolBar(QWidget* parent=nullptr); signals: void toolChanged(EditTool); void snapToggled(bool); void gridToggled(bool); private: QActionGroup* m_group; }; }
+
+class QComboBox;
+
+namespace myvocal {
+
+class MainToolBar final : public QToolBar {
+    Q_OBJECT
+public:
+    explicit MainToolBar(QWidget* parent = nullptr);
+
+signals:
+    void toolChanged(EditTool tool);
+    void snapToggled(bool enabled);
+    void gridToggled(bool enabled);
+    void gridResolutionChanged(int denominator);
+
+private:
+    QActionGroup* m_group{nullptr};
+    QComboBox* m_gridCombo{nullptr};
+};
+
+}
