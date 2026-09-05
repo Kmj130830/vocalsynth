@@ -38,6 +38,7 @@ const PitchCurve& Note::getPitchCurve() const noexcept { return m_pitchCurve; }
 PitchCurve& Note::getPitchCurve() noexcept { return m_pitchCurve; }
 const Vibrato& Note::getVibrato() const noexcept { return m_vibrato; }
 Vibrato& Note::getVibrato() noexcept { return m_vibrato; }
+void Note::setVibrato(const Vibrato& v) { m_vibrato = v; }
 double Note::getPreutterance() const noexcept { return m_preutterance; }
 void Note::setPreutterance(double v) { m_preutterance = v; }
 double Note::getOverlap() const noexcept { return m_overlap; }
