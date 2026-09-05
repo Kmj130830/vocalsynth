@@ -67,7 +67,9 @@ int ArrangementEditor::yForTrack(int trackIndex) const
 
 void ArrangementEditor::updateScrollRanges()
 {
-    const int trackCount = m_project ? std::max(1, m_project->tracks().size()) : 1;
+    const int trackCount = m_project
+        ? std::max(1, static_cast<int>(m_project->tracks().size()))
+        : 1;
     const int rows = trackCount + 1;
     verticalScrollBar()->setRange(0, std::max(0, rows * m_trackHeight - viewport()->height()));
 
@@ -75,7 +77,9 @@ void ArrangementEditor::updateScrollRanges()
     if (m_project) {
         for (const auto& track : m_project->tracks()) {
             for (const auto& note : track.notes()) {
-                maxMs = std::max(maxMs, qRound64(m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0));
+                maxMs = std::max(maxMs,
+                    qRound64(m_project->tempoMap().tickToSeconds(
+                        note.getEndTick(), m_project->ppq()) * 1000.0));
             }
         }
         for (const auto& clip : m_project->audioClips()) {
@@ -97,8 +101,9 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
     const qint64 endMs = qRound64((sx + viewport()->width()) / m_pixelsPerSecond * 1000.0);
     const qint64 beatMs = m_project ? qRound64(60000.0 / std::max(1.0, m_project->tempoMap().bpm())) : 500;
     const qint64 barMs = beatMs * 4;
-    for (qint64 ms = std::max<qint64>(0, (sx / m_pixelsPerSecond * 1000.0) / std::max<qint64>(1, beatMs) - 2) * beatMs;
-         ms <= endMs + beatMs; ms += beatMs) {
+    qint64 firstMs = qRound64((sx / m_pixelsPerSecond * 1000.0));
+    firstMs = std::max<qint64>(0, (firstMs / std::max<qint64>(1, beatMs) - 2) * beatMs);
+    for (qint64 ms = firstMs; ms <= endMs + beatMs; ms += beatMs) {
         const double x = ms / 1000.0 * m_pixelsPerSecond - sx;
         if (x < 0 || x > viewport()->width()) continue;
         const bool bar = barMs > 0 && ms % barMs == 0;
@@ -110,14 +115,17 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
 
     for (int i = 0; i < m_project->tracks().size(); ++i) {
         const int y = yForTrack(i);
-        p.fillRect(0, y, viewport()->width(), m_trackHeight, i % 2 ? QColor("#14171a") : QColor("#181b1f"));
+        p.fillRect(0, y, viewport()->width(), m_trackHeight,
+                   i % 2 ? QColor("#14171a") : QColor("#181b1f"));
         p.setPen(QColor("#2a2f35"));
         p.drawLine(0, y + m_trackHeight - 1, viewport()->width(), y + m_trackHeight - 1);
 
         const auto& track = m_project->tracks()[i];
         for (const auto& note : track.notes()) {
-            const double start = m_project->tempoMap().tickToSeconds(note.getStartTick(), m_project->ppq()) * 1000.0;
-            const double finish = m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0;
+            const double start = m_project->tempoMap().tickToSeconds(
+                note.getStartTick(), m_project->ppq()) * 1000.0;
+            const double finish = m_project->tempoMap().tickToSeconds(
+                note.getEndTick(), m_project->ppq()) * 1000.0;
             const int x = qRound(start / 1000.0 * m_pixelsPerSecond) - sx;
             const int w = std::max(2, qRound((finish - start) / 1000.0 * m_pixelsPerSecond));
             const QRect r(x, y + 7, w, m_trackHeight - 15);
@@ -163,7 +171,6 @@ void ArrangementEditor::mousePressEvent(QMouseEvent* event)
     setFocus();
     m_playheadMs = msAtX(qRound(event->position().x()));
     emit positionClicked(m_playheadMs);
-    emit documentChanged();
     m_draggingPlayhead = true;
     viewport()->update();
 }
