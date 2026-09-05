@@ -10,14 +10,13 @@
 #include "UI/TransportBar.h"
 
 #include <QApplication>
+#include <QAudioOutput>
 #include <QDockWidget>
 #include <QEventLoop>
 #include <QFileDialog>
-#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMediaPlayer>
-#include <QAudioOutput>
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QSettings>
@@ -41,18 +40,14 @@ QString findMoresampler(const std::filesystem::path& exeDir,
 
     const QList<std::filesystem::path> roots = {
         exeDir / "resampler", projectRoot / "resampler", cwd / "resampler"};
-    const QStringList names = {
-        QStringLiteral("moresampler.exe"),
-        QStringLiteral("resampler.exe")};
-
+    const QStringList names = {QStringLiteral("moresampler.exe"), QStringLiteral("resampler.exe")};
     for (const auto& root : roots) {
         std::error_code ec;
         if (!std::filesystem::is_directory(root, ec)) continue;
         for (const QString& name : names) {
             const auto candidate = root / name.toStdWString();
-            if (std::filesystem::is_regular_file(candidate, ec)) {
+            if (std::filesystem::is_regular_file(candidate, ec))
                 return QString::fromStdWString(candidate.wstring());
-            }
         }
     }
     return {};
@@ -64,7 +59,6 @@ qint64 probeDurationMs(const QString& path)
     QAudioOutput output;
     player.setAudioOutput(&output);
     player.setSource(QUrl::fromLocalFile(path));
-
     QEventLoop loop;
     QTimer timeout;
     timeout.setSingleShot(true);
@@ -84,7 +78,6 @@ MainWindow::MainWindow(QWidget* parent)
       m_renderer(&m_singers, this)
 {
     m_playback = std::make_unique<PlaybackController>(&m_audio, &m_renderer, this);
-
     buildUi();
     buildMenus();
     connectUi();
@@ -93,14 +86,12 @@ MainWindow::MainWindow(QWidget* parent)
     applyDefaults(*m_project);
 
     const auto exeDir = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString());
-    const auto projectRoot = exeDir.parent_path();
-    m_resampler = findMoresampler(exeDir, projectRoot, std::filesystem::current_path());
-    if (m_resampler.isEmpty()) {
-        statusBar()->showMessage(QStringLiteral("Moresampler not found; playback/render will report the searched paths."), 7000);
-    }
+    m_resampler = findMoresampler(exeDir, exeDir.parent_path(), std::filesystem::current_path());
     m_renderer.setResampler(m_resampler);
-    m_playback->setProject(m_project.get());
+    if (m_resampler.isEmpty())
+        statusBar()->showMessage(QStringLiteral("Moresampler not found. Searched executable/project/current resampler folders."), 6000);
 
+    m_playback->setProject(m_project.get());
     m_trackPanel->refresh();
     m_trackPanel->setCurrentRow(0);
     resize(1440, 930);
@@ -216,9 +207,9 @@ void MainWindow::connectUi()
             [this](int topMidi) { m_keyboard->setScrollPitch(topMidi); });
     connect(m_keyboard, &PianoKeyboard::keyPressed,
             m_editor, &PianoRollEditor::setKeyboardPitch);
-
     connect(m_arrangement, &ArrangementEditor::positionClicked,
             this, &MainWindow::seekFromTimeline);
+
     connect(m_playback.get(), &PlaybackController::positionChanged, this,
             [this](qint64 ms) {
                 const qint64 tick = qRound64(m_project->tempoMap().secondsToTick(ms / 1000.0, m_project->ppq()));
@@ -234,10 +225,6 @@ void MainWindow::connectUi()
             [this](const QString& error) {
                 QMessageBox::critical(this, QStringLiteral("Playback failed"), error);
             });
-
-    connect(&m_audio, &AudioEngine::mediaError, this, [this](const QString& error) {
-        statusBar()->showMessage(QStringLiteral("Audio: %1").arg(error), 5000);
-    });
 }
 
 void MainWindow::refreshVoiceBanks()
@@ -247,7 +234,6 @@ void MainWindow::refreshVoiceBanks()
     const auto exeDir = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString());
     const auto projectRoot = m_project && !m_project->path().empty() ? m_project->path().parent_path() : exeDir.parent_path();
     const auto cwd = std::filesystem::current_path();
-
     std::vector<std::filesystem::path> roots = {
         exeDir / "VoiceBanks", projectRoot / "VoiceBanks", cwd / "VoiceBanks"};
     if (!configured.isEmpty()) roots.insert(roots.begin(), std::filesystem::path(configured.toStdWString()));
@@ -258,14 +244,13 @@ void MainWindow::applyDefaults(Project& project)
 {
     const QSettings settings;
     project.tempoMap().setBpm(settings.value("defaults/bpm", 120.0).toDouble());
-    const QString defaultPhonemizer = settings.value("defaults/phonemizer", "Default CV").toString();
-    const QString defaultSinger = settings.value("defaults/singer").toString();
+    const QString phonemizer = settings.value("defaults/phonemizer", "Default CV").toString();
+    const QString singerName = settings.value("defaults/singer").toString();
     if (project.tracks().isEmpty()) project.addTrack();
-
     for (auto& track : project.tracks()) {
-        if (track.phonemizer().isEmpty()) track.setPhonemizer(defaultPhonemizer);
-        if (!defaultSinger.isEmpty()) {
-            if (auto singer = m_singers.findByName(defaultSinger)) track.setSingerPath(QString::fromStdWString(singer->path().wstring()));
+        if (track.phonemizer().isEmpty()) track.setPhonemizer(phonemizer);
+        if (!singerName.isEmpty()) {
+            if (auto singer = m_singers.findByName(singerName)) track.setSingerPath(QString::fromStdWString(singer->path().wstring()));
         }
         if (track.singerPath().isEmpty() && !m_singers.singers().empty()) track.setSingerPath(QString::fromStdWString(m_singers.singers().front()->path().wstring()));
     }
@@ -310,7 +295,6 @@ void MainWindow::importAudio()
 {
     const QStringList paths = QFileDialog::getOpenFileNames(this, QStringLiteral("Import Audio"), {}, QStringLiteral("Audio (*.wav *.mp3)"));
     if (paths.isEmpty()) return;
-
     const qint64 startMs = currentMs();
     for (const QString& path : paths) {
         AudioClip clip;
@@ -319,7 +303,6 @@ void MainWindow::importAudio()
         clip.durationMs = probeDurationMs(path);
         m_project->addAudioClip(clip);
     }
-
     m_audio.setBackingClips(m_project->audioClips());
     m_arrangement->update();
     updateTitle();
@@ -327,7 +310,7 @@ void MainWindow::importAudio()
 
 void MainWindow::importMidi()
 {
-    QMessageBox::information(this, QStringLiteral("MIDI"), QStringLiteral("MIDI import is not implemented as a fake UI action in this branch."));
+    QMessageBox::information(this, QStringLiteral("MIDI"), QStringLiteral("MIDI import is not implemented in this branch; no non-functional placeholder is exposed as an editor feature."));
 }
 
 void MainWindow::exportWav()
@@ -389,11 +372,9 @@ void MainWindow::renderProject()
 {
     const QString path = QFileDialog::getSaveFileName(this, QStringLiteral("Render Project"), {}, QStringLiteral("WAV (*.wav)"));
     if (path.isEmpty()) return;
-
     QProgressDialog progress(QStringLiteral("Rendering..."), QStringLiteral("Cancel"), 0, 100, this);
     progress.setWindowModality(Qt::WindowModal);
     connect(&m_renderer, &Renderer::progress, &progress, &QProgressDialog::setValue, Qt::UniqueConnection);
-
     QString error;
     if (m_renderer.renderProject(*m_project, path, &error)) {
         m_audio.load(path);
@@ -408,7 +389,6 @@ void MainWindow::showPreferences()
 {
     PreferencesDialog dialog(&m_resampler, &m_singers, this);
     if (dialog.exec() != QDialog::Accepted) return;
-
     refreshVoiceBanks();
     m_resampler = QSettings().value("renderer/moresampler", m_resampler).toString();
     if (m_resampler.isEmpty()) {
@@ -448,6 +428,8 @@ void MainWindow::rescanVoiceBanks()
 void MainWindow::seekFromTimeline(qint64 ms)
 {
     m_playback->seekMs(ms);
+    const qint64 tick = qRound64(m_project->tempoMap().secondsToTick(ms / 1000.0, m_project->ppq()));
+    m_editor->setPlayheadTick(tick);
 }
 
 void MainWindow::setProject(std::unique_ptr<Project> project)
@@ -455,8 +437,7 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     if (!project) return;
     m_project = std::move(project);
     refreshVoiceBanks();
-
-    if (m_playback) m_playback->setProject(m_project.get());
+    m_playback->setProject(m_project.get());
     m_audio.setBackingClips(m_project->audioClips());
 
     if (auto* oldCentral = centralWidget()) oldCentral->deleteLater();
@@ -471,6 +452,7 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     pianoLayout->addWidget(m_keyboard);
     pianoLayout->addWidget(m_editor, 1);
     m_arrangement = new ArrangementEditor(m_project.get(), this);
+    m_arrangement->setPixelsPerSecond(90.0);
     auto* splitter = new QSplitter(Qt::Vertical, this);
     splitter->addWidget(pianoContainer);
     splitter->addWidget(m_arrangement);
@@ -494,8 +476,15 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     m_trackPanel->setCurrentRow(0);
     m_editor->setActiveTrack(0);
 
-    connectUi();
-    updateTitle();
+    connect(m_trackPanel, &TrackPanel::trackSelected, this, &MainWindow::selectTrack);
+    connect(m_editor, &PianoRollEditor::documentChanged, this, [this] {
+        m_playback->invalidateCache();
+        m_arrangement->update();
+        updateTitle();
+    });
+    connect(m_editor, &PianoRollEditor::verticalPitchChanged, this, [this](int midi) { m_keyboard->setScrollPitch(midi); });
+    connect(m_keyboard, &PianoKeyboard::keyPressed, m_editor, &PianoRollEditor::setKeyboardPitch);
+    connect(m_arrangement, &ArrangementEditor::positionClicked, this, &MainWindow::seekFromTimeline);
 }
 
 qint64 MainWindow::currentTick() const
