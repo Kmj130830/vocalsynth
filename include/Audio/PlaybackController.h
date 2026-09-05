@@ -7,10 +7,10 @@
 #include "Audio/AudioEngine.h"
 #include "Core/Project.h"
 
+class QTimer;
 class QThread;
 
 namespace myvocal {
-
 class Renderer;
 
 class PlaybackController final : public QObject {
@@ -35,16 +35,21 @@ signals:
     void stateChanged(bool playing);
 
 private:
-    void prepareAndPlay(qint64 startMs);
-    QString cachePath() const;
+    void schedulePreRender();
+    void startRender(bool playAfter);
     void cleanupThread();
+    QString cachePath(quint64 generation) const;
 
     AudioEngine* m_audio{nullptr};
     Renderer* m_renderer{nullptr};
     Project* m_project{nullptr};
     std::unique_ptr<QThread> m_thread;
+    std::unique_ptr<QTimer> m_preRenderTimer;
+    quint64 m_generation{0};
     qint64 m_startMs{0};
+    qint64 m_pendingPlayMs{-1};
     bool m_preparing{false};
+    bool m_backgroundRendering{false};
     QString m_cachedWav;
 };
 
