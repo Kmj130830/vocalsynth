@@ -1,12 +1,13 @@
 #pragma once
 
 #include <QObject>
-#include <QThread>
 #include <QString>
 #include <memory>
 
 #include "Audio/AudioEngine.h"
 #include "Core/Project.h"
+
+class QThread;
 
 namespace myvocal {
 
@@ -19,6 +20,7 @@ public:
     ~PlaybackController() override;
 
     void setProject(Project* project);
+    void invalidateCache();
     void playFromMs(qint64 ms);
     void pause();
     void stop(bool returnToStart);
@@ -31,9 +33,6 @@ signals:
     void playbackError(const QString& message);
     void positionChanged(qint64 ms);
     void stateChanged(bool playing);
-
-private slots:
-    void onAudioPosition(qint64 ms);
 
 private:
     void prepareAndPlay(qint64 startMs);
