@@ -1,8 +1,10 @@
 #pragma once
 
+#include <QByteArray>
 #include <QVector>
 #include <QString>
 #include <filesystem>
+#include <memory>
 
 #include "Core/AudioClip.h"
 #include "Core/TempoMap.h"
@@ -38,6 +40,10 @@ public:
     const QVector<AudioClip>& audioClips() const noexcept;
     int addAudioClip(const AudioClip& clip);
     bool removeAudioClip(int index);
+
+    // In-memory document serialization used by UndoManager as well as project files.
+    QByteArray serializeJson() const;
+    bool restoreJson(const QByteArray& json, QString* error = nullptr);
 
     bool save(const std::filesystem::path& path, QString* error = nullptr) const;
     static std::unique_ptr<Project> load(const std::filesystem::path& path,
