@@ -24,10 +24,13 @@ jobs:
           cache: true
 
       - name: Configure
-        run: cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+        shell: pwsh
+        run: |
+          if (Test-Path build-clean) { Remove-Item build-clean -Recurse -Force }
+          cmake -S . -B build-clean -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build-clean --parallel
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build-clean --output-on-failure
