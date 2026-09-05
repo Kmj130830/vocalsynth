@@ -20,13 +20,15 @@ public:
     void setBackingClips(const QVector<AudioClip>& clips);
     void play();
     void pause();
-    void stop();
+    void stop(bool preservePosition = false);
     void seek(qint64 ms);
     bool isPlaying() const;
     qint64 position() const;
 
 signals:
     void positionChanged(qint64 ms);
+    void playbackStateChanged(bool playing);
+    void mediaError(const QString& message);
 
 private:
     void stopBackingPlayers();
