@@ -48,6 +48,7 @@ set(SOURCES
     src/UI/PreferencesDialog.cpp
     src/UI/DiagnosticsDialog.cpp
     src/UI/ArrangementEditor.cpp
+    src/UI/PhonemeStripEditor.cpp
     src/Undo/UndoManager.cpp
     src/Utils/Logger.cpp
     src/Utils/ShortcutManager.cpp
@@ -65,6 +66,7 @@ set(HEADERS
     include/Core/SongTime.h
     include/Core/TempoMap.h
     include/Core/Track.h
+    include/Core/Parameter.h
     include/DSP/PitchProcessor.h
     include/DSP/VibratoProcessor.h
     include/DSP/WaveMixer.h
@@ -89,6 +91,7 @@ set(HEADERS
     include/Singer/SingerInfo.h
     include/Singer/SingerManager.h
     include/UI/ArrangementEditor.h
+    include/UI/PhonemeStripEditor.h
     include/UI/DiagnosticsDialog.h
     include/UI/LyricEditor.h
     include/UI/MainToolBar.h
@@ -113,6 +116,7 @@ set(MOC_HEADERS
     include/Renderer/Renderer.h
     include/Renderer/RenderWorker.h
     include/UI/ArrangementEditor.h
+    include/UI/PhonemeStripEditor.h
     include/UI/DiagnosticsDialog.h
     include/UI/LyricEditor.h
     include/UI/MainToolBar.h
