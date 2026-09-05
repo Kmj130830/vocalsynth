@@ -10,6 +10,7 @@
 #include <QVector>
 
 #include <memory>
+#include <vector>
 
 #include "Core/AudioClip.h"
 
@@ -52,8 +53,8 @@ private:
     bool m_loaded{false};
 
     QVector<AudioClip> m_clips;
-    QVector<QMediaPlayer*> m_backingPlayers;
-    QVector<QAudioOutput*> m_backingOutputs;
+    std::vector<std::unique_ptr<QMediaPlayer>> m_backingPlayers;
+    std::vector<std::unique_ptr<QAudioOutput>> m_backingOutputs;
 };
 
 }
