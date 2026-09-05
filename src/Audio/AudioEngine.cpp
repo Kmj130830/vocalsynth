@@ -14,6 +14,14 @@ AudioEngine::AudioEngine(QObject* parent)
     m_output.setVolume(1.0);
     connect(&m_player, &QMediaPlayer::positionChanged,
             this, &AudioEngine::positionChanged);
+    connect(&m_player, &QMediaPlayer::playbackStateChanged, this,
+            [this](QMediaPlayer::PlaybackState state) {
+                emit playbackStateChanged(state == QMediaPlayer::PlayingState);
+            });
+    connect(&m_player, &QMediaPlayer::errorOccurred, this,
+            [this](QMediaPlayer::Error, const QString& error) {
+                emit mediaError(error);
+            });
 }
 
 void AudioEngine::load(const QString& path)
@@ -81,10 +89,17 @@ void AudioEngine::pause()
     }
 }
 
-void AudioEngine::stop()
+void AudioEngine::stop(bool preservePosition)
 {
-    m_player.stop();
-    stopBackingPlayers();
+    const qint64 current = m_player.position();
+    if (preservePosition) {
+        pause();
+        m_player.setPosition(current);
+        syncBackingPlayers(current, false);
+    } else {
+        m_player.stop();
+        stopBackingPlayers();
+    }
 }
 
 void AudioEngine::seek(qint64 ms)
@@ -92,6 +107,7 @@ void AudioEngine::seek(qint64 ms)
     ms = std::max<qint64>(0, ms);
     m_player.setPosition(ms);
     syncBackingPlayers(ms, isPlaying());
+    emit positionChanged(ms);
 }
 
 bool AudioEngine::isPlaying() const
