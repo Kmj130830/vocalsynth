@@ -4,6 +4,10 @@
 
 #include "Core/Project.h"
 
+class QDoubleSpinBox;
+class QEvent;
+class QMouseEvent;
+
 namespace myvocal {
 
 class ArrangementEditor final : public QAbstractScrollArea {
@@ -19,6 +23,7 @@ public:
 
 signals:
     void positionClicked(qint64 ms);
+    void trackClicked(int index);
     void documentChanged();
 
 protected:
@@ -30,14 +35,16 @@ protected:
 
 private:
     qint64 msAtX(int x) const;
-    int yForTrack(int trackIndex) const;
+    int trackAtY(int y) const;
     void updateScrollRanges();
+    void updateHeaderGeometry();
 
     Project* m_project{nullptr};
     qint64 m_playheadMs{0};
-    int m_trackHeight{48};
+    int m_trackHeight{56};
     double m_pixelsPerSecond{90.0};
     bool m_draggingPlayhead{false};
+    QDoubleSpinBox* m_bpmSpin{nullptr};
 };
 
 }
