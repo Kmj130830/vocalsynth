@@ -72,6 +72,7 @@ private:
     void finishLyricEdit(bool accept);
     void commitRightDragNote();
     void sortNotes();
+    void invalidate();
     void updateScrollRanges();
 
     Project* m_project{nullptr};
