@@ -23,6 +23,7 @@ set(SOURCES
     src/DSP/VibratoProcessor.cpp
     src/DSP/WaveMixer.cpp
     src/Editor/PianoRollEditor.cpp
+    src/Editor/PianoRollViewportEvents.cpp
     src/Phonemizer/DefaultCVPhonemizer.cpp
     src/Phonemizer/JapaneseVCVPhonemizer.cpp
     src/Phonemizer/JapaneseCVVCPhonemizer.cpp
