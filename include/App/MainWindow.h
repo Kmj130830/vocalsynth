@@ -15,7 +15,7 @@ namespace myvocal {
 
 class ArrangementEditor;
 class MainToolBar;
-class ParameterPanel;
+class PhonemeStripEditor;
 class PianoKeyboard;
 class TrackPanel;
 class TransportBar;
@@ -64,10 +64,10 @@ private:
 
     PianoRollEditor* m_editor{nullptr};
     ArrangementEditor* m_arrangement{nullptr};
+    PhonemeStripEditor* m_phonemeStrip{nullptr};
     PianoKeyboard* m_keyboard{nullptr};
     TrackPanel* m_trackPanel{nullptr};
     MainToolBar* m_toolbar{nullptr};
-    ParameterPanel* m_params{nullptr};
     TransportBar* m_transport{nullptr};
 
     QString m_resampler;
