@@ -3,7 +3,6 @@
 
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -24,9 +23,7 @@ const QStringList kPhonemizers = {
     QStringLiteral("Korean VCV"), QStringLiteral("Korean CBNN")};
 }
 
-PreferencesDialog::PreferencesDialog(QString* resampler,
-                                     SingerManager* singers,
-                                     QWidget* parent)
+PreferencesDialog::PreferencesDialog(QString* resampler, SingerManager* singers, QWidget* parent)
     : QDialog(parent), m_resampler(resampler)
 {
     setWindowTitle(QStringLiteral("Preferences"));
@@ -74,12 +71,6 @@ PreferencesDialog::PreferencesDialog(QString* resampler,
     m_phonemizerCombo->setCurrentIndex(phonIndex < 0 ? 0 : phonIndex);
     form->addRow(QStringLiteral("Default Phonemizer"), m_phonemizerCombo);
 
-    m_bpmSpin = new QDoubleSpinBox(this);
-    m_bpmSpin->setRange(20.0, 999.0);
-    m_bpmSpin->setDecimals(2);
-    m_bpmSpin->setValue(settings.value("defaults/bpm", 120.0).toDouble());
-    form->addRow(QStringLiteral("Default BPM"), m_bpmSpin);
-
     m_snapSpin = new QSpinBox(this);
     m_snapSpin->setRange(1, 3840);
     m_snapSpin->setValue(settings.value("defaults/snap", 60).toInt());
@@ -120,7 +111,6 @@ PreferencesDialog::PreferencesDialog(QString* resampler,
         settings.setValue("voicebanks/path", m_voiceBanksEdit->text());
         settings.setValue("defaults/singer", m_singerCombo->currentText());
         settings.setValue("defaults/phonemizer", m_phonemizerCombo->currentText());
-        settings.setValue("defaults/bpm", m_bpmSpin->value());
         settings.setValue("defaults/snap", m_snapSpin->value());
         settings.setValue("defaults/grid", m_gridSpin->value());
         settings.setValue("playback/stopBehavior", returnStart->isChecked() ? 0 : 1);
@@ -133,7 +123,6 @@ PreferencesDialog::PreferencesDialog(QString* resampler,
 QString PreferencesDialog::voiceBanksPath() const { return m_voiceBanksEdit ? m_voiceBanksEdit->text() : QString(); }
 QString PreferencesDialog::defaultSinger() const { return m_singerCombo ? m_singerCombo->currentText() : QString(); }
 QString PreferencesDialog::defaultPhonemizer() const { return m_phonemizerCombo ? m_phonemizerCombo->currentText() : QStringLiteral("Default CV"); }
-double PreferencesDialog::defaultBpm() const { return m_bpmSpin ? m_bpmSpin->value() : 120.0; }
 int PreferencesDialog::defaultSnap() const { return m_snapSpin ? m_snapSpin->value() : 60; }
 int PreferencesDialog::defaultGrid() const { return m_gridSpin ? m_gridSpin->value() : 120; }
 
