@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace myvocal {
 namespace {
@@ -26,20 +27,24 @@ AudioSpectrumWidget::AudioSpectrumWidget(Project* project, QWidget* parent)
     setMaximumHeight(130);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
-    QAudioFormat format;
-    format.setSampleRate(m_sampleRate);
-    format.setChannelCount(1);
-    format.setSampleFormat(QAudioFormat::Int16);
-    m_decoder->setAudioFormat(format);
-
     connect(m_decoder, &QAudioDecoder::bufferReady, this, &AudioSpectrumWidget::readBuffer);
     connect(m_decoder, &QAudioDecoder::finished, this, &AudioSpectrumWidget::decoderFinished);
-    connect(m_decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), this, [this](QAudioDecoder::Error) { decoderError(); });
+    connect(m_decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), this,
+            [this](QAudioDecoder::Error) { decoderError(); });
     refresh();
 }
 
-void AudioSpectrumWidget::setProject(Project* project) { m_project = project; refresh(); }
-void AudioSpectrumWidget::setPlayheadMs(qint64 ms) { m_playheadMs = std::max<qint64>(0, ms); update(); }
+void AudioSpectrumWidget::setProject(Project* project)
+{
+    m_project = project;
+    refresh();
+}
+
+void AudioSpectrumWidget::setPlayheadMs(qint64 ms)
+{
+    m_playheadMs = std::max<qint64>(0, ms);
+    update();
+}
 
 void AudioSpectrumWidget::resetData()
 {
@@ -54,15 +59,24 @@ void AudioSpectrumWidget::refresh()
     QString source;
     if (m_project) {
         for (const auto& clip : m_project->audioClips()) {
-            if (!clip.muted && QFileInfo(clip.path).isFile()) { source = clip.path; break; }
+            if (!clip.muted && QFileInfo(clip.path).isFile()) {
+                source = clip.path;
+                break;
+            }
         }
     }
+
     if (source.isEmpty()) {
         m_decoder->stop();
         resetData();
         return;
     }
-    if (source == m_sourcePath && !m_columns.isEmpty()) { update(); return; }
+
+    if (source == m_sourcePath && !m_columns.isEmpty()) {
+        update();
+        return;
+    }
+
     decodeFile(source);
 }
 
@@ -80,21 +94,55 @@ void AudioSpectrumWidget::readBuffer()
 {
     const QAudioBuffer buffer = m_decoder->read();
     if (!buffer.isValid()) return;
+
     const QAudioFormat format = buffer.format();
     const int frames = buffer.sampleCount();
     const int channels = format.channelCount();
     const int bytesPerSample = format.bytesPerSample();
     if (frames <= 0 || channels <= 0 || bytesPerSample <= 0) return;
 
+    const int frameBytes = format.bytesPerFrame();
+    if (frameBytes <= 0) return;
+
     QVector<float> mono;
     mono.reserve(frames);
-    const char* raw = static_cast<const char*>(buffer.constData());
-    const int frameBytes = channels * bytesPerSample;
+    const char* raw = static_cast<const char*>(buffer.constData<void>());
+    if (!raw) return;
+
+    // QAudioBuffer::constData<T>() is the public Qt 6 API; the untyped constData()
+    // overload is private in Qt 6.11. Decode the common PCM sample formats directly.
     for (int frame = 0; frame < frames; ++frame) {
         double sum = 0.0;
         const char* framePtr = raw + frame * frameBytes;
         for (int channel = 0; channel < channels; ++channel) {
-            sum += format.normalizedSampleValue(framePtr + channel * bytesPerSample);
+            const char* samplePtr = framePtr + channel * bytesPerSample;
+            double value = 0.0;
+            switch (format.sampleFormat()) {
+            case QAudioFormat::UInt8:
+                value = (static_cast<unsigned char>(samplePtr[0]) - 128) / 128.0;
+                break;
+            case QAudioFormat::Int16: {
+                qint16 s = 0;
+                std::memcpy(&s, samplePtr, sizeof(s));
+                value = static_cast<double>(s) / 32768.0;
+                break;
+            }
+            case QAudioFormat::Int32: {
+                qint32 s = 0;
+                std::memcpy(&s, samplePtr, sizeof(s));
+                value = static_cast<double>(s) / 2147483648.0;
+                break;
+            }
+            case QAudioFormat::Float: {
+                float s = 0.0f;
+                std::memcpy(&s, samplePtr, sizeof(s));
+                value = std::clamp(static_cast<double>(s), -1.0, 1.0);
+                break;
+            }
+            case QAudioFormat::Unknown:
+                break;
+            }
+            sum += value;
         }
         mono.push_back(static_cast<float>(sum / channels));
     }
@@ -112,7 +160,8 @@ void AudioSpectrumWidget::readBuffer()
                 real += sample * std::cos(omega * n);
                 imag -= sample * std::sin(omega * n);
             }
-            bands[band] = static_cast<float>(std::clamp(std::sqrt(real * real + imag * imag) / kFftSamples * 7.0, 0.0, 1.0));
+            bands[band] = static_cast<float>(std::clamp(
+                std::sqrt(real * real + imag * imag) / kFftSamples * 7.0, 0.0, 1.0));
         }
         m_columns.push_back(std::move(bands));
         m_decodedFrames += kHopSamples;
@@ -121,8 +170,15 @@ void AudioSpectrumWidget::readBuffer()
     update();
 }
 
-void AudioSpectrumWidget::decoderFinished() { update(); }
-void AudioSpectrumWidget::decoderError() { update(); }
+void AudioSpectrumWidget::decoderFinished()
+{
+    update();
+}
+
+void AudioSpectrumWidget::decoderError()
+{
+    update();
+}
 
 void AudioSpectrumWidget::paintEvent(QPaintEvent*)
 {
@@ -130,25 +186,33 @@ void AudioSpectrumWidget::paintEvent(QPaintEvent*)
     p.fillRect(rect(), QColor("#0c0f13"));
     p.setPen(QColor("#343a44"));
     p.drawLine(0, 0, width(), 0);
+
     if (m_columns.isEmpty()) {
         p.setPen(QColor("#717986"));
-        p.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Audio Spectrum  •  no decoded audio"));
+        p.drawText(rect().adjusted(10, 0, -10, 0),
+                   Qt::AlignVCenter | Qt::AlignLeft,
+                   QStringLiteral("Audio Spectrum  •  no decoded audio"));
         return;
     }
 
-    const int columnWidth = std::max(1, width() / std::max(1, m_columns.size()));
+    const qsizetype columnCount = std::max<qsizetype>(1, m_columns.size());
+    const int columnWidth = std::max(1, width() / static_cast<int>(columnCount));
     const int usableHeight = height() - 8;
     for (int i = 0; i < m_columns.size(); ++i) {
         const int x = i * columnWidth;
         const auto& bands = m_columns.at(i);
         for (int b = 0; b < bands.size(); ++b) {
             const int barHeight = std::max(1, static_cast<int>(bands.at(b) * usableHeight * 0.72));
-            p.fillRect(x, height() - 5 - barHeight, std::max(1, columnWidth - 1), barHeight, QColor("#485a70"));
+            p.fillRect(x, height() - 5 - barHeight, std::max(1, columnWidth - 1), barHeight,
+                       QColor("#485a70"));
         }
     }
+
     if (m_project) {
         qint64 durationMs = 0;
-        for (const auto& clip : m_project->audioClips()) if (clip.path == m_sourcePath) durationMs = std::max(durationMs, clip.durationMs);
+        for (const auto& clip : m_project->audioClips()) {
+            if (clip.path == m_sourcePath) durationMs = std::max(durationMs, clip.durationMs);
+        }
         if (durationMs > 0) {
             const int x = qRound(std::clamp(static_cast<double>(m_playheadMs) / durationMs, 0.0, 1.0) * width());
             p.setPen(QPen(QColor("#ff5b6e"), 1.5));
