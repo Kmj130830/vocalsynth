@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QWidget>
 
 #include <algorithm>
@@ -143,7 +144,7 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
     const qint64 firstVisibleMs = std::max<qint64>(0, qRound64(sx / m_pixelsPerSecond * 1000.0) - beatMs * 2);
     const qint64 endVisibleMs = msAtX(viewport()->width());
 
-    qint64 firstGrid = (firstVisibleMs / beatMs) * beatMs;
+    const qint64 firstGrid = (firstVisibleMs / beatMs) * beatMs;
     for (qint64 ms = firstGrid; ms <= endVisibleMs + beatMs; ms += beatMs) {
         const double x = ms / 1000.0 * m_pixelsPerSecond - sx;
         if (x < 0 || x > viewport()->width()) continue;
