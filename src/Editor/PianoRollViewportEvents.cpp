@@ -6,11 +6,6 @@
 
 namespace myvocal {
 
-Project* PianoRollEditor::project() const noexcept
-{
-    return m_project;
-}
-
 bool PianoRollEditor::viewportEvent(QEvent* event)
 {
     switch (event->type()) {
