@@ -30,7 +30,6 @@ private slots:
     void openProject();
     void saveProject();
     void saveProjectAs();
-    void importMidi();
     void importAudio();
     void exportWav();
     void addTrack();
