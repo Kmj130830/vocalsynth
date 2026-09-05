@@ -2,20 +2,23 @@
 
 #include <QMainWindow>
 #include <memory>
-#include "Core/Project.h"
+
 #include "Audio/AudioEngine.h"
-#include "Singer/SingerManager.h"
-#include "Renderer/Renderer.h"
+#include "Audio/PlaybackController.h"
+#include "Core/Project.h"
 #include "Editor/PianoRollEditor.h"
+#include "Renderer/Renderer.h"
+#include "Singer/SingerManager.h"
 #include "Undo/UndoManager.h"
 
 namespace myvocal {
 
-class TrackPanel;
+class ArrangementEditor;
 class MainToolBar;
 class ParameterPanel;
-class TransportBar;
 class PianoKeyboard;
+class TrackPanel;
+class TransportBar;
 
 class MainWindow final : public QMainWindow {
     Q_OBJECT
@@ -28,6 +31,7 @@ private slots:
     void saveProject();
     void saveProjectAs();
     void importMidi();
+    void importAudio();
     void exportWav();
     void addTrack();
     void removeTrack();
@@ -36,10 +40,10 @@ private slots:
     void togglePlay();
     void stopPlayback();
     void renderProject();
-    void renderSelected();
     void showPreferences();
     void showDiagnostics();
     void rescanVoiceBanks();
+    void seekFromTimeline(qint64 ms);
 
 private:
     void buildUi();
@@ -49,19 +53,24 @@ private:
     void applyDefaults(Project& project);
     void refreshVoiceBanks();
     void updateTitle();
-    QString defaultProjectPath() const;
+    qint64 currentTick() const;
+    qint64 currentMs() const;
 
     std::unique_ptr<Project> m_project;
     AudioEngine m_audio;
     SingerManager m_singers;
     Renderer m_renderer;
     UndoManager m_undo;
+    std::unique_ptr<PlaybackController> m_playback;
+
     PianoRollEditor* m_editor{nullptr};
+    ArrangementEditor* m_arrangement{nullptr};
     PianoKeyboard* m_keyboard{nullptr};
     TrackPanel* m_trackPanel{nullptr};
     MainToolBar* m_toolbar{nullptr};
     ParameterPanel* m_params{nullptr};
     TransportBar* m_transport{nullptr};
+
     QString m_resampler;
 };
 
