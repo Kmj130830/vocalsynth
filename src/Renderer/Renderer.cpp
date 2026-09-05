@@ -17,20 +17,18 @@
 #include <QTemporaryDir>
 
 #include <algorithm>
-#include <memory>
+#include <cmath>
 #include <vector>
+#include <memory>
 
 namespace myvocal {
-
 namespace {
 
 std::unique_ptr<IPhonemizer> makePhonemizer(const QString& name)
 {
     if (name == QStringLiteral("Japanese VCV")) return std::make_unique<JapaneseVCVPhonemizer>();
     if (name == QStringLiteral("Japanese CVVC")) return std::make_unique<JapaneseCVVCPhonemizer>();
-    if (name == QStringLiteral("Hybrid Japanese") || name == QStringLiteral("Japanese VCV / CVVC Hybrid")) {
-        return std::make_unique<HybridJapanesePhonemizer>();
-    }
+    if (name == QStringLiteral("Hybrid Japanese") || name == QStringLiteral("Japanese VCV / CVVC Hybrid")) return std::make_unique<HybridJapanesePhonemizer>();
     if (name == QStringLiteral("Korean VCV")) return std::make_unique<KoreanVCVPhonemizer>();
     if (name == QStringLiteral("Korean CBNN")) return std::make_unique<KoreanCBNNPhonemizer>();
     return std::make_unique<DefaultCVPhonemizer>();
@@ -39,10 +37,9 @@ std::unique_ptr<IPhonemizer> makePhonemizer(const QString& name)
 QString midiToToneName(int midi)
 {
     static const QStringList names = {
-        QStringLiteral("C"), QStringLiteral("C#"), QStringLiteral("D"),
-        QStringLiteral("D#"), QStringLiteral("E"), QStringLiteral("F"),
-        QStringLiteral("F#"), QStringLiteral("G"), QStringLiteral("G#"),
-        QStringLiteral("A"), QStringLiteral("A#"), QStringLiteral("B")};
+        QStringLiteral("C"), QStringLiteral("C#"), QStringLiteral("D"), QStringLiteral("D#"),
+        QStringLiteral("E"), QStringLiteral("F"), QStringLiteral("F#"), QStringLiteral("G"),
+        QStringLiteral("G#"), QStringLiteral("A"), QStringLiteral("A#"), QStringLiteral("B")};
     midi = std::clamp(midi, 0, 127);
     return names.at(midi % 12) + QString::number(midi / 12 - 1);
 }
@@ -52,13 +49,59 @@ double tickToMs(const TempoMap& tempo, qint64 tick, double ppq)
     return tempo.tickToSeconds(static_cast<double>(tick), ppq) * 1000.0;
 }
 
-QString constantPitchBend(double lengthMs)
+QString encodeInt12(const std::vector<int>& values)
 {
-    // OpenUtau/Moresampler encodes 12-bit pitch samples with two Base64
-    // characters and compresses consecutive identical samples as #count#.
-    const int samples = std::max(1, static_cast<int>(std::ceil(lengthMs / 5.0)));
-    if (samples == 1) return QStringLiteral("AA");
-    return QStringLiteral("AA#%1#").arg(samples - 1);
+    static constexpr char table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    QString result;
+    result.reserve(static_cast<int>(values.size() * 2));
+    if (values.empty()) return QStringLiteral("AA");
+
+    QString previous;
+    int duplicates = 0;
+    for (int value : values) {
+        value = std::clamp(value, -2048, 2047);
+        if (value < 0) value += 4096;
+        QString encoded;
+        encoded.append(QChar(table[(value >> 6) & 0x3f]));
+        encoded.append(QChar(table[value & 0x3f]));
+
+        if (previous.isEmpty()) {
+            previous = encoded;
+            result += encoded;
+        } else if (previous == encoded) {
+            ++duplicates;
+        } else {
+            if (duplicates > 0) {
+                result += QStringLiteral("#%1#").arg(duplicates);
+            }
+            result += encoded;
+            previous = encoded;
+            duplicates = 0;
+        }
+    }
+    if (duplicates > 0) result += QStringLiteral("#%1#").arg(duplicates);
+    return result;
+}
+
+QString pitchBendFor(const Note& note, const Phoneme& phoneme,
+                     const TempoMap& tempo, double ppq, double renderLengthMs)
+{
+    const auto& curve = note.getPitchCurve();
+    const int sampleCount = std::max(1, static_cast<int>(std::ceil(renderLengthMs / 5.0)));
+    std::vector<int> values;
+    values.reserve(static_cast<size_t>(sampleCount));
+
+    const double noteStartMs = tickToMs(tempo, note.getStartTick(), ppq);
+    const double phonemeStartMs = tickToMs(tempo, phoneme.startTick, ppq);
+    const double curveOriginMs = phonemeStartMs - noteStartMs;
+
+    for (int i = 0; i < sampleCount; ++i) {
+        const double sampleMs = std::min(renderLengthMs, static_cast<double>(i) * 5.0);
+        const double curveTimeMs = curveOriginMs + sampleMs;
+        const double offset = curve.points().empty() ? 0.0 : curve.evaluateSmooth(curveTimeMs);
+        values.push_back(static_cast<int>(std::llround(offset * 100.0)));
+    }
+    return encodeInt12(values);
 }
 
 }
@@ -68,10 +111,7 @@ Renderer::Renderer(SingerManager* manager, QObject* parent)
 {
 }
 
-void Renderer::setResampler(const QString& path)
-{
-    m_resampler = path.trimmed();
-}
+void Renderer::setResampler(const QString& path) { m_resampler = path.trimmed(); }
 
 bool Renderer::renderProject(const Project& project, const QString& output, QString* error)
 {
@@ -83,16 +123,14 @@ bool Renderer::renderProject(const Project& project, const QString& output, QStr
         if (error) *error = QStringLiteral("Moresampler executable is not configured. Set it in Tools > Preferences.");
         return false;
     }
-    if (!QFileInfo::exists(m_resampler)) {
+    if (!QFileInfo::isFile(m_resampler)) {
         if (error) *error = QStringLiteral("Moresampler executable not found: %1").arg(m_resampler);
         return false;
     }
 
     bool hasSolo = false;
     int totalNotes = 0;
-    for (const auto& track : project.tracks()) {
-        if (track.solo()) hasSolo = true;
-    }
+    for (const auto& track : project.tracks()) hasSolo = hasSolo || track.solo();
     for (const auto& track : project.tracks()) {
         if (!track.muted() && (!hasSolo || track.solo())) totalNotes += track.notes().size();
     }
@@ -116,7 +154,7 @@ bool Renderer::renderProject(const Project& project, const QString& output, QStr
     for (const auto& track : project.tracks()) {
         if (track.muted() || (hasSolo && !track.solo())) continue;
 
-        auto singer = m_singerManager->findByPath(track.singerPath());
+        std::shared_ptr<Singer> singer = m_singerManager->findByPath(track.singerPath());
         if (!singer && !track.singerPath().isEmpty()) {
             singer = std::make_shared<Singer>(std::filesystem::path(track.singerPath().toStdWString()));
             singer->load();
@@ -126,7 +164,7 @@ bool Renderer::renderProject(const Project& project, const QString& output, QStr
             return false;
         }
         if (!singer->isValid()) {
-            if (error) *error = QStringLiteral("VoiceBank '%1' has an invalid oto.ini: %2")
+            if (error) *error = QStringLiteral("VoiceBank '%1' cannot be loaded: %2")
                 .arg(singer->info().name, singer->oto().error());
             return false;
         }
@@ -153,15 +191,17 @@ bool Renderer::renderProject(const Project& project, const QString& output, QStr
                 return false;
             }
 
-            const std::filesystem::path sourcePath =
-                singer->path() / std::filesystem::path(oto->filename.toStdWString());
+            const std::filesystem::path sourcePath = singer->path() / std::filesystem::path(oto->filename.toStdWString());
             const QString sourceWav = QString::fromStdWString(sourcePath.lexically_normal().wstring());
-            if (!QFileInfo::exists(sourceWav)) {
-                if (error) *error = QStringLiteral("oto.ini source WAV not found: %1").arg(sourceWav);
+            if (!QFileInfo::isFile(sourceWav)) {
+                if (error) *error = QStringLiteral("oto.ini source WAV not found for alias '%1': %2").arg(phoneme.alias, sourceWav);
                 return false;
             }
 
             const QString outputWav = tempDir.path() + QStringLiteral("/segment_%1.wav").arg(segmentIndex++);
+            const double actualLengthMs = std::max(1.0, tickToMs(project.tempoMap(), phoneme.lengthTick, project.ppq()));
+            const double renderLengthMs = std::max(20.0, actualLengthMs);
+
             ResamplerRequest request;
             request.inputWav = sourceWav;
             request.outputWav = outputWav;
@@ -170,28 +210,25 @@ bool Renderer::renderProject(const Project& project, const QString& output, QStr
             request.flags = note.getFlags().trimmed();
             if (request.flags.isEmpty()) request.flags = QStringLiteral("g0B0H0P100");
             request.offsetMs = oto->offset;
-            request.requiredLengthMs = std::max(1.0,
-                tickToMs(project.tempoMap(), note.getDurationTick(), project.ppq()));
+            request.requiredLengthMs = renderLengthMs;
             request.consonantMs = oto->consonant;
             request.cutoffMs = oto->cutoff;
-            request.volume = std::clamp(track.volume() * 100.0, 0.0, 200.0);
-            request.modulation = note.getModulation();
-            request.tempo = project.tempoMap().bpm();
-            request.pitchBend = constantPitchBend(request.requiredLengthMs);
+            request.volume = std::clamp(track.volume() * note.getIntensity(), 0.0, 200.0);
+            request.modulation = std::clamp(note.getModulation(), 0.0, 100.0);
+            request.tempo = std::max(1.0, project.tempoMap().bpm());
+            request.pitchBend = pitchBendFor(note, phoneme, project.tempoMap(), project.ppq(), renderLengthMs);
 
-            emit message(QStringLiteral("Rendering %1 / %2: %3")
-                .arg(processed + 1).arg(totalNotes).arg(phoneme.alias));
+            emit message(QStringLiteral("Rendering %1 / %2: %3").arg(processed + 1).arg(totalNotes).arg(phoneme.alias));
             const ResamplerResult result = resampler.render(request);
             if (!result.success) {
-                if (error) *error = QStringLiteral("Moresampler failed for '%1': %2")
-                    .arg(phoneme.alias, result.error);
+                if (error) *error = QStringLiteral("Moresampler failed for '%1': %2").arg(phoneme.alias, result.error);
                 return false;
             }
 
             RenderSegment segment;
             segment.wavPath = outputWav;
             segment.startMs = qRound64(tickToMs(project.tempoMap(), phoneme.startTick, project.ppq()));
-            segment.lengthMs = qRound64(tickToMs(project.tempoMap(), phoneme.lengthTick, project.ppq()));
+            segment.lengthMs = qRound64(renderLengthMs);
             segment.gain = std::clamp(track.volume(), 0.0, 2.0);
             segment.overlapMs = phoneme.overlap;
             segments.push_back(segment);
