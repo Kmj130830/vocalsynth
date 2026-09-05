@@ -1,11 +1,10 @@
 #include "Audio/PlaybackController.h"
 
-#include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QMetaObject>
 #include <QStandardPaths>
-#include <QTemporaryDir>
 #include <QThread>
 
 #include "Renderer/Renderer.h"
@@ -16,8 +15,8 @@ PlaybackController::PlaybackController(AudioEngine* audio, Renderer* renderer, Q
     : QObject(parent), m_audio(audio), m_renderer(renderer)
 {
     if (m_audio) {
-        connect(m_audio, &AudioEngine::positionChanged,
-                this, &PlaybackController::onAudioPosition);
+        connect(m_audio, &AudioEngine::positionChanged, this,
+                [this](qint64 ms) { emit positionChanged(ms); });
     }
 }
 
@@ -30,12 +29,19 @@ void PlaybackController::setProject(Project* project)
 {
     cleanupThread();
     m_project = project;
-    m_cachedWav.clear();
+    invalidateCache();
     m_startMs = 0;
     if (m_audio) {
         m_audio->stop(false);
         m_audio->setBackingClips(project ? project->audioClips() : QVector<AudioClip>{});
     }
+}
+
+void PlaybackController::invalidateCache()
+{
+    m_cachedWav.clear();
+    const QString path = cachePath();
+    if (QFileInfo::exists(path)) QFile::remove(path);
 }
 
 QString PlaybackController::cachePath() const
@@ -55,13 +61,12 @@ void PlaybackController::playFromMs(qint64 ms)
 
     ms = qMax<qint64>(0, ms);
     m_startMs = ms;
-
     if (m_preparing) return;
 
     if (!m_cachedWav.isEmpty() && QFileInfo::exists(m_cachedWav)) {
         m_audio->load(m_cachedWav);
-        m_audio->seek(ms);
         m_audio->setBackingClips(m_project->audioClips());
+        m_audio->seek(ms);
         m_audio->play();
         emit stateChanged(true);
         return;
@@ -89,9 +94,7 @@ void PlaybackController::prepareAndPlay(qint64 startMs)
             emit preparingChanged(false);
             if (!ok) {
                 m_cachedWav.clear();
-                emit playbackError(error.isEmpty()
-                    ? QStringLiteral("Voice playback rendering failed.")
-                    : error);
+                emit playbackError(error.isEmpty() ? QStringLiteral("Voice playback rendering failed.") : error);
                 return;
             }
             if (!m_audio || !m_project) return;
@@ -104,9 +107,7 @@ void PlaybackController::prepareAndPlay(qint64 startMs)
     }));
 
     connect(m_thread.get(), &QThread::finished, this, [this] {
-        if (m_thread && !m_thread->isRunning()) {
-            m_thread.reset();
-        }
+        if (m_thread) m_thread.reset();
     });
     m_thread->start();
 }
@@ -121,11 +122,12 @@ void PlaybackController::stop(bool returnToStart)
 {
     if (!m_audio) return;
     const qint64 current = m_audio->position();
-    m_audio->stop(!returnToStart);
     if (returnToStart) {
+        m_audio->stop(false);
         m_audio->seek(m_startMs);
         emit positionChanged(m_startMs);
     } else {
+        m_audio->stop(true);
         m_audio->seek(current);
         emit positionChanged(current);
     }
@@ -138,20 +140,8 @@ void PlaybackController::seekMs(qint64 ms)
     m_audio->seek(qMax<qint64>(0, ms));
 }
 
-bool PlaybackController::isPreparing() const noexcept
-{
-    return m_preparing;
-}
-
-qint64 PlaybackController::playbackStartMs() const noexcept
-{
-    return m_startMs;
-}
-
-void PlaybackController::onAudioPosition(qint64 ms)
-{
-    emit positionChanged(ms);
-}
+bool PlaybackController::isPreparing() const noexcept { return m_preparing; }
+qint64 PlaybackController::playbackStartMs() const noexcept { return m_startMs; }
 
 void PlaybackController::cleanupThread()
 {
