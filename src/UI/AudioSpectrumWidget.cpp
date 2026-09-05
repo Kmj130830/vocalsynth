@@ -25,14 +25,16 @@ AudioSpectrumWidget::AudioSpectrumWidget(Project* project, QWidget* parent)
     setMinimumHeight(74);
     setMaximumHeight(130);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+
     QAudioFormat format;
     format.setSampleRate(m_sampleRate);
     format.setChannelCount(1);
     format.setSampleFormat(QAudioFormat::Int16);
     m_decoder->setAudioFormat(format);
+
     connect(m_decoder, &QAudioDecoder::bufferReady, this, &AudioSpectrumWidget::readBuffer);
     connect(m_decoder, &QAudioDecoder::finished, this, &AudioSpectrumWidget::decoderFinished);
-    connect(m_decoder, &QAudioDecoder::errorChanged, this, [this](QAudioDecoder::Error) { decoderError(); });
+    connect(m_decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), this, [this](QAudioDecoder::Error) { decoderError(); });
     refresh();
 }
 
@@ -56,7 +58,7 @@ void AudioSpectrumWidget::refresh()
         }
     }
     if (source.isEmpty()) {
-        if (m_decoder) m_decoder->stop();
+        m_decoder->stop();
         resetData();
         return;
     }
@@ -80,26 +82,21 @@ void AudioSpectrumWidget::readBuffer()
     if (!buffer.isValid()) return;
     const QAudioFormat format = buffer.format();
     const int frames = buffer.sampleCount();
-    if (frames <= 0 || format.channelCount() <= 0) return;
+    const int channels = format.channelCount();
+    const int bytesPerSample = format.bytesPerSample();
+    if (frames <= 0 || channels <= 0 || bytesPerSample <= 0) return;
 
     QVector<float> mono;
     mono.reserve(frames);
-    if (format.sampleFormat() == QAudioFormat::Int16) {
-        const qint16* data = buffer.constData<qint16>();
-        for (int frame = 0; frame < frames; ++frame) {
-            qint64 sum = 0;
-            for (int channel = 0; channel < format.channelCount(); ++channel) sum += data[frame * format.channelCount() + channel];
-            mono.push_back(static_cast<float>(sum) / static_cast<float>(format.channelCount() * 32768.0));
+    const char* raw = static_cast<const char*>(buffer.constData());
+    const int frameBytes = channels * bytesPerSample;
+    for (int frame = 0; frame < frames; ++frame) {
+        double sum = 0.0;
+        const char* framePtr = raw + frame * frameBytes;
+        for (int channel = 0; channel < channels; ++channel) {
+            sum += format.normalizedSampleValue(framePtr + channel * bytesPerSample);
         }
-    } else if (format.sampleFormat() == QAudioFormat::Float) {
-        const float* data = buffer.constData<float>();
-        for (int frame = 0; frame < frames; ++frame) {
-            double sum = 0.0;
-            for (int channel = 0; channel < format.channelCount(); ++channel) sum += data[frame * format.channelCount() + channel];
-            mono.push_back(static_cast<float>(sum / format.channelCount()));
-        }
-    } else {
-        return;
+        mono.push_back(static_cast<float>(sum / channels));
     }
 
     for (int offset = 0; offset + kFftSamples <= mono.size(); offset += kHopSamples) {
@@ -138,14 +135,14 @@ void AudioSpectrumWidget::paintEvent(QPaintEvent*)
         p.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Audio Spectrum  •  no decoded audio"));
         return;
     }
+
     const int columnWidth = std::max(1, width() / std::max(1, m_columns.size()));
     const int usableHeight = height() - 8;
     for (int i = 0; i < m_columns.size(); ++i) {
         const int x = i * columnWidth;
         const auto& bands = m_columns.at(i);
         for (int b = 0; b < bands.size(); ++b) {
-            const float level = bands.at(b);
-            const int barHeight = std::max(1, static_cast<int>(level * usableHeight * 0.72));
+            const int barHeight = std::max(1, static_cast<int>(bands.at(b) * usableHeight * 0.72));
             p.fillRect(x, height() - 5 - barHeight, std::max(1, columnWidth - 1), barHeight, QColor("#485a70"));
         }
     }
