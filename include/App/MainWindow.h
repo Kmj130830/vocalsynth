@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QMainWindow>
 #include <memory>
 
@@ -52,6 +53,8 @@ private:
     void applyDefaults(Project& project);
     void refreshVoiceBanks();
     void updateTitle();
+    void refreshUndoSnapshot();
+    void restoreProjectSnapshot(const QByteArray& snapshot);
     qint64 currentTick() const;
     qint64 currentMs() const;
 
@@ -71,6 +74,8 @@ private:
     TransportBar* m_transport{nullptr};
 
     QString m_resampler;
+    QByteArray m_undoSnapshot;
+    bool m_restoringSnapshot{false};
 };
 
 }
