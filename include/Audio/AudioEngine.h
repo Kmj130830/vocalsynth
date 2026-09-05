@@ -3,9 +3,9 @@
 #include <QAudioOutput>
 #include <QMediaPlayer>
 #include <QObject>
-#include <QVector>
 
 #include <memory>
+#include <vector>
 
 #include "Core/AudioClip.h"
 
@@ -37,8 +37,8 @@ private:
     QMediaPlayer m_player;
     QAudioOutput m_output;
     QVector<AudioClip> m_clips;
-    QVector<std::unique_ptr<QMediaPlayer>> m_backingPlayers;
-    QVector<std::unique_ptr<QAudioOutput>> m_backingOutputs;
+    std::vector<std::unique_ptr<QMediaPlayer>> m_backingPlayers;
+    std::vector<std::unique_ptr<QAudioOutput>> m_backingOutputs;
 };
 
 }
