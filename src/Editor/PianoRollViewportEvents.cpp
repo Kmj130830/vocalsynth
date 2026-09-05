@@ -6,6 +6,11 @@
 
 namespace myvocal {
 
+Project* PianoRollEditor::project() const noexcept
+{
+    return m_project;
+}
+
 bool PianoRollEditor::viewportEvent(QEvent* event)
 {
     switch (event->type()) {
@@ -21,9 +26,10 @@ bool PianoRollEditor::viewportEvent(QEvent* event)
         auto* mouse = static_cast<QMouseEvent*>(event);
         mouseMoveEvent(mouse);
         if (!m_dragging && !m_panning && m_tool == EditTool::Select) {
-            if (Note* note = noteAt(mouse->position().toPoint())) {
+            const QPoint pos = mouse->position().toPoint();
+            if (Note* note = noteAt(pos)) {
                 viewport()->setCursor(
-                    isResizeHandle(*note, mouse->position().toPoint())
+                    isResizeHandle(*note, pos)
                         ? Qt::SizeHorCursor
                         : Qt::ArrowCursor);
             } else {
