@@ -11,6 +11,27 @@
 #include "Renderer/Renderer.h"
 
 namespace myvocal {
+namespace {
+
+bool hasAudibleNotes(const Project& project)
+{
+    bool hasSolo = false;
+    for (const auto& track : project.tracks()) hasSolo = hasSolo || track.solo();
+    for (const auto& track : project.tracks()) {
+        if (!track.muted() && (!hasSolo || track.solo()) && !track.notes().isEmpty()) return true;
+    }
+    return false;
+}
+
+bool hasBackingAudio(const Project& project)
+{
+    for (const auto& clip : project.audioClips()) {
+        if (!clip.muted && QFileInfo::isFile(clip.path)) return true;
+    }
+    return false;
+}
+
+}
 
 PlaybackController::PlaybackController(AudioEngine* audio, Renderer* renderer, QObject* parent)
     : QObject(parent), m_audio(audio), m_renderer(renderer), m_preRenderTimer(std::make_unique<QTimer>())
@@ -37,14 +58,17 @@ void PlaybackController::setProject(Project* project)
         m_audio->stop(false);
         m_audio->setBackingClips(project ? project->audioClips() : QVector<AudioClip>{});
     }
-    schedulePreRender();
+    if (m_project && hasAudibleNotes(*m_project)) schedulePreRender();
 }
 
 void PlaybackController::invalidateCache()
 {
     ++m_generation;
     m_cachedWav.clear();
-    if (m_preRenderTimer) m_preRenderTimer->start();
+    if (m_preRenderTimer) {
+        m_preRenderTimer->stop();
+        if (m_project && hasAudibleNotes(*m_project)) m_preRenderTimer->start();
+    }
 }
 
 QString PlaybackController::cachePath(quint64 generation) const
@@ -56,18 +80,36 @@ QString PlaybackController::cachePath(quint64 generation) const
 
 void PlaybackController::schedulePreRender()
 {
-    if (m_preRenderTimer && m_project) m_preRenderTimer->start();
+    if (m_preRenderTimer && m_project && hasAudibleNotes(*m_project)) m_preRenderTimer->start();
 }
 
 void PlaybackController::playFromMs(qint64 ms)
 {
-    if (!m_project || !m_audio || !m_renderer) {
+    if (!m_project || !m_audio) {
         emit playbackError(QStringLiteral("Playback is not initialized."));
         return;
     }
     ms = qMax<qint64>(0, ms);
     m_startMs = ms;
-    if (!m_cachedWav.isEmpty() && QFileInfo::exists(m_cachedWav)) {
+
+    if (!hasAudibleNotes(*m_project)) {
+        if (!hasBackingAudio(*m_project)) {
+            emit playbackError(QStringLiteral("There are no audible notes or imported audio clips."));
+            return;
+        }
+        m_audio->setBackingClips(m_project->audioClips());
+        m_audio->seek(ms);
+        m_audio->play();
+        emit stateChanged(true);
+        return;
+    }
+
+    if (!m_renderer) {
+        emit playbackError(QStringLiteral("Renderer is not initialized."));
+        return;
+    }
+
+    if (!m_cachedWav.isEmpty() && QFileInfo::isFile(m_cachedWav)) {
         m_audio->load(m_cachedWav);
         m_audio->setBackingClips(m_project->audioClips());
         m_audio->seek(ms);
@@ -75,6 +117,7 @@ void PlaybackController::playFromMs(qint64 ms)
         emit stateChanged(true);
         return;
     }
+
     m_pendingPlayMs = ms;
     if (m_backgroundRendering || m_preparing) return;
     startRender(true);
@@ -82,7 +125,7 @@ void PlaybackController::playFromMs(qint64 ms)
 
 void PlaybackController::startRender(bool playAfter)
 {
-    if (!m_project || !m_renderer) return;
+    if (!m_project || !m_renderer || !hasAudibleNotes(*m_project)) return;
     if (m_thread && m_thread->isRunning()) {
         if (playAfter) m_pendingPlayMs = m_startMs;
         return;
@@ -101,11 +144,11 @@ void PlaybackController::startRender(bool playAfter)
         const bool ok = renderer && project && renderer->renderProject(*project, output, &error);
         QMetaObject::invokeMethod(this, [this, ok, error, output, generation] {
             const bool current = generation == m_generation;
-            if (ok && current && QFileInfo::exists(output)) {
+            if (ok && current && QFileInfo::isFile(output)) {
                 const QString old = m_cachedWav;
                 m_cachedWav = output;
                 if (!old.isEmpty() && old != output) QFile::remove(old);
-            } else if (!ok || !current) {
+            } else {
                 QFile::remove(output);
             }
 
@@ -118,7 +161,14 @@ void PlaybackController::startRender(bool playAfter)
             if (wasPreparing) emit preparingChanged(false);
 
             if (!ok && wasPreparing) {
-                emit playbackError(error.isEmpty() ? QStringLiteral("Voice playback rendering failed.") : error);
+                if (m_project && hasBackingAudio(*m_project) && m_audio) {
+                    m_audio->setBackingClips(m_project->audioClips());
+                    m_audio->seek(pending >= 0 ? pending : m_startMs);
+                    m_audio->play();
+                    emit stateChanged(true);
+                } else {
+                    emit playbackError(error.isEmpty() ? QStringLiteral("Voice playback rendering failed.") : error);
+                }
             } else if (current && shouldPlay && !m_cachedWav.isEmpty() && m_audio && m_project) {
                 m_audio->load(m_cachedWav);
                 m_audio->setBackingClips(m_project->audioClips());
@@ -130,6 +180,7 @@ void PlaybackController::startRender(bool playAfter)
             }
         }, Qt::QueuedConnection);
     }));
+
     connect(m_thread.get(), &QThread::finished, this, [this] {
         if (m_thread && !m_thread->isRunning()) m_thread.reset();
     });
@@ -159,7 +210,11 @@ void PlaybackController::stop(bool returnToStart)
     emit stateChanged(false);
 }
 
-void PlaybackController::seekMs(qint64 ms) { if (m_audio) m_audio->seek(qMax<qint64>(0, ms)); }
+void PlaybackController::seekMs(qint64 ms)
+{
+    if (m_audio) m_audio->seek(qMax<qint64>(0, ms));
+}
+
 bool PlaybackController::isPreparing() const noexcept { return m_preparing || m_backgroundRendering; }
 qint64 PlaybackController::playbackStartMs() const noexcept { return m_startMs; }
 
