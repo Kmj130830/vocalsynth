@@ -75,8 +75,8 @@ MainToolBar::MainToolBar(QWidget* parent)
     });
 
     // MainWindow recreates PianoRollEditor when New/Open loads a project.
-    // Keep a second, dynamic connection so these controls always affect the
-    // currently live editor instead of the editor object that was first built.
+    // Keep a dynamic connection so these controls always affect the editor
+    // which is currently part of the main window.
     QTimer::singleShot(0, this, [this] {
         auto findEditor = [this]() -> PianoRollEditor* {
             QWidget* host = window();
@@ -102,10 +102,10 @@ MainToolBar::MainToolBar(QWidget* parent)
         connect(this, &MainToolBar::gridResolutionChanged, this,
                 [findEditor](int denominator) {
             if (auto* editor = findEditor()) {
-                const auto* project = editor->property("project").value<Project*>();
-                if (project) {
+                if (const auto* project = editor->project()) {
                     editor->setGridTicks(
-                        qMax<qint64>(1, qRound64(project->ppq() * 4.0 / denominator)));
+                        qMax<qint64>(1, qRound64(
+                            project->ppq() * 4.0 / denominator)));
                 }
                 editor->viewport()->update();
             }
