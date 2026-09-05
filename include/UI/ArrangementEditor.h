@@ -1,9 +1,13 @@
 #pragma once
 
 #include <QAbstractScrollArea>
+#include <QPair>
+#include <QVector>
+#include <QStringList>
 
 #include "Core/Project.h"
 
+class QAudioDecoder;
 class QDoubleSpinBox;
 class QMouseEvent;
 class QResizeEvent;
@@ -38,6 +42,10 @@ private:
     int trackAtY(int y) const;
     void updateScrollRanges();
     void updateHeaderGeometry();
+    void refreshAudioWaveforms();
+    void decodeNextAudioClip();
+    void readAudioBuffer();
+    void finishAudioDecode();
 
     Project* m_project{nullptr};
     qint64 m_playheadMs{0};
@@ -47,6 +55,14 @@ private:
     int m_draggingAudioIndex{-1};
     qint64 m_audioDragOffsetMs{0};
     QDoubleSpinBox* m_bpmSpin{nullptr};
+
+    QAudioDecoder* m_audioDecoder{nullptr};
+    QVector<QVector<QPair<float, float>>> m_audioPeaks;
+    QStringList m_waveformPaths;
+    int m_decodeIndex{-1};
+    qint64 m_decodeFramesInBucket{0};
+    float m_decodeMin{1.0f};
+    float m_decodeMax{-1.0f};
 };
 
 }
