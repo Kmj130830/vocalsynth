@@ -12,6 +12,7 @@ set(SOURCES
     src/main.cpp
     src/App/MainWindow.cpp
     src/Audio/AudioEngine.cpp
+    src/Audio/PlaybackController.cpp
     src/Core/Note.cpp
     src/Core/PitchCurve.cpp
     src/Core/SongTime.cpp
@@ -54,6 +55,7 @@ set(SOURCES
 set(HEADERS
     include/App/MainWindow.h
     include/Audio/AudioEngine.h
+    include/Audio/PlaybackController.h
     include/Core/AudioClip.h
     include/Core/Note.h
     include/Core/Phoneme.h
@@ -104,6 +106,7 @@ set(HEADERS
 set(MOC_HEADERS
     include/App/MainWindow.h
     include/Audio/AudioEngine.h
+    include/Audio/PlaybackController.h
     include/Editor/PianoRollEditor.h
     include/Renderer/MoresamplerProcess.h
     include/Renderer/Renderer.h
@@ -128,9 +131,7 @@ add_executable(MyVocalSynth WIN32
     ${MYVOCAL_MOC_SOURCES}
 )
 
-target_include_directories(MyVocalSynth PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+target_include_directories(MyVocalSynth PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_link_libraries(MyVocalSynth PRIVATE
     Qt6::Core
@@ -166,11 +167,8 @@ set(TEST_SOURCES
 )
 
 add_executable(MyVocalSynthTests ${TEST_SOURCES})
-
 target_include_directories(MyVocalSynthTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-
 target_link_libraries(MyVocalSynthTests PRIVATE Qt6::Core Qt6::Gui)
-
 add_test(NAME MyVocalSynthTests COMMAND MyVocalSynthTests)
 
 include(GNUInstallDirs)
