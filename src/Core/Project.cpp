@@ -27,6 +27,13 @@ void Project::setTimeSignature(int numerator, int denominator)
     m_tsD = std::max(1, denominator);
 }
 
+qint64 Project::gridTicks() const noexcept { return m_gridTicks; }
+void Project::setGridTicks(qint64 ticks) noexcept { m_gridTicks = std::clamp<qint64>(ticks, 1, 3840); }
+bool Project::snapEnabled() const noexcept { return m_snapEnabled; }
+void Project::setSnapEnabled(bool enabled) noexcept { m_snapEnabled = enabled; }
+bool Project::gridVisible() const noexcept { return m_gridVisible; }
+void Project::setGridVisible(bool visible) noexcept { m_gridVisible = visible; }
+
 QVector<Track>& Project::tracks() noexcept { return m_tracks; }
 const QVector<Track>& Project::tracks() const noexcept { return m_tracks; }
 
@@ -73,7 +80,7 @@ bool Project::save(const std::filesystem::path& path, QString* error) const
     }
 
     QJsonObject root;
-    root["formatVersion"] = 2;
+    root["formatVersion"] = 3;
     root["title"] = m_title;
     root["ppq"] = m_ppq;
     root["tempo"] = m_tempo.bpm();
@@ -82,6 +89,12 @@ bool Project::save(const std::filesystem::path& path, QString* error) const
     ts["numerator"] = m_tsN;
     ts["denominator"] = m_tsD;
     root["timeSignature"] = ts;
+
+    QJsonObject editor;
+    editor["gridTicks"] = QString::number(m_gridTicks);
+    editor["snapEnabled"] = m_snapEnabled;
+    editor["gridVisible"] = m_gridVisible;
+    root["editor"] = editor;
 
     QJsonArray tracks;
     for (const auto& track : m_tracks) {
@@ -138,6 +151,13 @@ std::unique_ptr<Project> Project::load(const std::filesystem::path& path, QStrin
 
     const QJsonObject ts = root["timeSignature"].toObject();
     project->setTimeSignature(ts["numerator"].toInt(4), ts["denominator"].toInt(4));
+
+    const QJsonObject editor = root["editor"].toObject();
+    project->m_gridTicks = std::clamp<qint64>(
+        editor["gridTicks"].toString().toLongLong(), 1, 3840);
+    if (editor["gridTicks"].isUndefined()) project->m_gridTicks = 120;
+    project->m_snapEnabled = editor["snapEnabled"].isUndefined() ? true : editor["snapEnabled"].toBool(true);
+    project->m_gridVisible = editor["gridVisible"].isUndefined() ? true : editor["gridVisible"].toBool(true);
 
     project->m_tracks.clear();
     for (const auto& value : root["tracks"].toArray()) {
