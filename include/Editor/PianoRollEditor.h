@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractScrollArea>
+#include <QHash>
 #include <QPoint>
 #include <QRect>
 #include <QVector>
@@ -9,27 +10,16 @@
 
 class QEvent;
 class QLineEdit;
+class QMouseEvent;
 
 namespace myvocal {
 
-enum class EditTool {
-    Select,
-    Pen,
-    PenPlus,
-    Eraser,
-    Knife,
-    Pitch,
-    PitchLine,
-    Vibrato,
-    Zoom,
-    Pan
-};
+enum class EditTool { Select, Pen, PenPlus, Eraser, Knife, Pitch, PitchLine, Vibrato, Zoom, Pan };
 
 class PianoRollEditor final : public QAbstractScrollArea {
     Q_OBJECT
 public:
     explicit PianoRollEditor(Project* project, QWidget* parent = nullptr);
-
     Project* project() const noexcept;
     void setActiveTrack(int index);
     int activeTrack() const noexcept;
@@ -70,17 +60,18 @@ private:
     QRect noteRect(const Note& note) const;
     Note* noteAt(const QPoint& pos);
     bool isResizeHandle(const Note& note, const QPoint& pos) const;
+    bool hasTimeOverlap(qint64 start, qint64 end, qint64 ignoreId = -1) const;
+    qint64 constrainedMoveDelta(qint64 desiredDelta) const;
+    qint64 availableEndForNote(const Note& note, qint64 desiredEnd) const;
     void ensureVisibleTick(qint64 tick);
     void createNote(const QPoint& pos);
+    void createDraggedNote(qint64 startTick, qint64 endTick, int midi);
     void deleteNoteAt(const QPoint& pos);
     void splitNoteAt(const QPoint& pos);
     void beginLyricEdit(Note& note);
     void finishLyricEdit(bool accept);
-    void editPitchAt(const QPoint& pos);
-    void updatePitchFromMouse(const QPoint& pos);
-    void toggleVibratoAt(const QPoint& pos);
-    void constrainMove(qint64& delta) const;
-    void invalidate();
+    void commitRightDragNote();
+    void sortNotes();
     void updateScrollRanges();
 
     Project* m_project{nullptr};
@@ -95,17 +86,28 @@ private:
     double m_pxPerBeat{110.0};
     int m_rowHeight{22};
     int m_topMidi{84};
+
     bool m_dragging{false};
     bool m_resizing{false};
     bool m_panning{false};
-    bool m_pitchEditing{false};
+    bool m_playheadDragging{false};
+    bool m_rightDrawing{false};
+    bool m_mouseMovedDuringDrag{false};
+
     QPoint m_lastPos;
     qint64 m_dragStartTick{0};
     int m_dragStartPitch{60};
+    qint64 m_dragAnchorTick{0};
+    int m_dragAnchorPitch{60};
     QVector<qint64> m_dragIds;
+    QHash<qint64, qint64> m_dragOriginalStart;
+    QHash<qint64, int> m_dragOriginalPitch;
     qint64 m_resizeId{-1};
     qint64 m_resizeOriginalEnd{0};
-    qint64 m_pitchNoteId{-1};
+
+    qint64 m_rightDrawId{-1};
+    qint64 m_rightDrawStart{0};
+    int m_rightDrawPitch{60};
 };
 
 }
