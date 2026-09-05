@@ -1,7 +1,6 @@
 #include "Editor/PianoRollEditor.h"
 #include "Core/SongTime.h"
 
-#include <QDateTime>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QMouseEvent>
@@ -11,7 +10,7 @@
 #include <QWheelEvent>
 
 #include <algorithm>
-#include <limits>
+#include <cmath>
 
 namespace myvocal {
 namespace {
@@ -51,6 +50,8 @@ void PianoRollEditor::setActiveTrack(int index)
     m_dragOriginalStart.clear();
     m_dragOriginalEnd.clear();
     m_dragOriginalPitch.clear();
+    m_resizeId = -1;
+    m_pitchNoteId = -1;
     viewport()->update();
 }
 
@@ -59,7 +60,8 @@ int PianoRollEditor::activeTrack() const noexcept { return m_activeTrack; }
 void PianoRollEditor::setTool(EditTool tool)
 {
     m_tool = tool;
-    viewport()->setCursor(tool == EditTool::Pan ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    if (tool == EditTool::Pan) viewport()->setCursor(Qt::OpenHandCursor);
+    else viewport()->setCursor(Qt::ArrowCursor);
 }
 
 EditTool PianoRollEditor::tool() const noexcept { return m_tool; }
@@ -72,29 +74,11 @@ void PianoRollEditor::setPlayheadTick(qint64 tick)
 }
 
 qint64 PianoRollEditor::playheadTick() const noexcept { return m_playhead; }
-
-void PianoRollEditor::setSnapEnabled(bool enabled)
-{
-    m_snap = enabled;
-    viewport()->update();
-}
-
+void PianoRollEditor::setSnapEnabled(bool enabled) { m_snap = enabled; viewport()->update(); }
 bool PianoRollEditor::snapEnabled() const noexcept { return m_snap; }
-
-void PianoRollEditor::setShowGrid(bool value)
-{
-    m_showGrid = value;
-    viewport()->update();
-}
-
+void PianoRollEditor::setShowGrid(bool value) { m_showGrid = value; viewport()->update(); }
 bool PianoRollEditor::showGrid() const noexcept { return m_showGrid; }
-
-void PianoRollEditor::setGridTicks(qint64 ticks)
-{
-    m_gridTicks = std::clamp<qint64>(ticks, 1, 3840);
-    viewport()->update();
-}
-
+void PianoRollEditor::setGridTicks(qint64 ticks) { m_gridTicks = std::clamp<qint64>(ticks, 1, 3840); viewport()->update(); }
 qint64 PianoRollEditor::gridTicks() const noexcept { return m_gridTicks; }
 
 qint64 PianoRollEditor::snapTick(qint64 tick) const
@@ -125,7 +109,7 @@ QRect PianoRollEditor::noteRect(const Note& note) const
 
 Note* PianoRollEditor::noteAt(const QPoint& pos)
 {
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return nullptr;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return nullptr;
     auto& notes = m_project->tracks()[m_activeTrack].notes();
     for (auto it = notes.rbegin(); it != notes.rend(); ++it) {
         if (noteRect(*it).contains(pos)) return &(*it);
@@ -136,12 +120,12 @@ Note* PianoRollEditor::noteAt(const QPoint& pos)
 bool PianoRollEditor::isResizeHandle(const Note& note, const QPoint& pos) const
 {
     const QRect r = noteRect(note);
-    return r.contains(pos) && pos.x() >= r.right() - kResizeHandlePx;
+    return r.width() >= kResizeHandlePx && r.contains(pos) && pos.x() >= r.right() - kResizeHandlePx;
 }
 
 bool PianoRollEditor::hasTimeOverlap(qint64 start, qint64 end, qint64 ignoreId) const
 {
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return false;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return false;
     if (end <= start) return true;
     for (const auto& note : m_project->tracks()[m_activeTrack].notes()) {
         if (note.getId() == ignoreId) continue;
@@ -153,18 +137,17 @@ bool PianoRollEditor::hasTimeOverlap(qint64 start, qint64 end, qint64 ignoreId) 
 qint64 PianoRollEditor::constrainedMoveDelta(qint64 desiredDelta) const
 {
     if (!m_project || m_dragIds.isEmpty()) return desiredDelta;
-    qint64 delta = desiredDelta;
     const auto& notes = m_project->tracks()[m_activeTrack].notes();
+    qint64 delta = desiredDelta;
     for (const auto& note : notes) {
         if (!m_dragOriginalStart.contains(note.getId())) continue;
         const qint64 start = m_dragOriginalStart.value(note.getId());
         const qint64 end = m_dragOriginalEnd.value(note.getId());
         if (start + delta < 0) delta = -start;
         for (const auto& other : notes) {
-            if (other.getId() == note.getId() || m_dragOriginalStart.contains(other.getId())) continue;
+            if (m_dragOriginalStart.contains(other.getId()) || other.getId() == note.getId()) continue;
             if (start + delta < other.getEndTick() && end + delta > other.getStartTick()) {
-                if (desiredDelta >= 0) delta = other.getStartTick() - end;
-                else delta = other.getEndTick() - start;
+                delta = desiredDelta >= 0 ? other.getStartTick() - end : other.getEndTick() - start;
             }
         }
     }
@@ -175,12 +158,10 @@ qint64 PianoRollEditor::availableEndForNote(const Note& note, qint64 desiredEnd)
 {
     const qint64 minimum = note.getStartTick() + 1;
     qint64 end = std::max(minimum, desiredEnd);
-    if (!m_project) return end;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return end;
     for (const auto& other : m_project->tracks()[m_activeTrack].notes()) {
         if (other.getId() == note.getId()) continue;
-        if (other.getStartTick() > note.getStartTick() && other.getStartTick() < end) {
-            end = other.getStartTick();
-        }
+        if (other.getStartTick() > note.getStartTick() && other.getStartTick() < end) end = other.getStartTick();
     }
     return std::max(minimum, end);
 }
@@ -196,17 +177,15 @@ void PianoRollEditor::ensureVisibleTick(qint64 tick)
 
 void PianoRollEditor::createNote(const QPoint& pos)
 {
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
     const qint64 start = tickAtX(pos.x());
-    qint64 end = start + kDefaultNoteLength;
     const int midi = midiAtY(pos.y());
-
+    qint64 end = start + kDefaultNoteLength;
     for (const auto& other : m_project->tracks()[m_activeTrack].notes()) {
         if (other.getStartTick() > start) end = std::min(end, other.getStartTick());
     }
-    end = snapTick(end);
+    if (m_snap) end = snapTick(end);
     if (end <= start || hasTimeOverlap(start, end)) return;
-
     for (auto& other : m_project->tracks()[m_activeTrack].notes()) other.setSelected(false);
     Note note;
     note.setStartTick(start);
@@ -223,18 +202,17 @@ void PianoRollEditor::createNote(const QPoint& pos)
 
 void PianoRollEditor::createDraggedNote(qint64 startTick, qint64 endTick, int midi)
 {
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
     startTick = snapTick(startTick);
     endTick = snapTick(endTick);
     if (endTick < startTick) std::swap(startTick, endTick);
     if (endTick <= startTick) endTick = startTick + std::max<qint64>(1, m_gridTicks);
     if (hasTimeOverlap(startTick, endTick)) return;
-
     for (auto& other : m_project->tracks()[m_activeTrack].notes()) other.setSelected(false);
     Note note;
     note.setStartTick(startTick);
     note.setDurationTick(endTick - startTick);
-    note.setMidiNote(midi);
+    note.setMidiNote(std::clamp(midi, 0, 127));
     note.setLyric(QStringLiteral("a"));
     note.setSelected(true);
     m_project->tracks()[m_activeTrack].addNote(std::move(note));
@@ -246,31 +224,29 @@ void PianoRollEditor::createDraggedNote(qint64 startTick, qint64 endTick, int mi
 
 void PianoRollEditor::deleteNoteAt(const QPoint& pos)
 {
-    if (!m_project) return;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
     auto& notes = m_project->tracks()[m_activeTrack].notes();
     for (int i = notes.size() - 1; i >= 0; --i) {
-        if (noteRect(notes[i]).contains(pos)) {
-            notes.removeAt(i);
-            emit documentChanged();
-            invalidate();
-            return;
-        }
+        if (!noteRect(notes.at(i)).contains(pos)) continue;
+        notes.removeAt(i);
+        emit documentChanged();
+        invalidate();
+        return;
     }
 }
 
 void PianoRollEditor::splitNoteAt(const QPoint& pos)
 {
+    if (!m_project) return;
     Note* note = noteAt(pos);
-    if (!note || !m_project) return;
+    if (!note) return;
     const qint64 splitTick = tickAtX(pos.x());
     if (splitTick <= note->getStartTick() || splitTick >= note->getEndTick()) return;
-    const qint64 oldEnd = note->getEndTick();
-    const qint64 firstDuration = splitTick - note->getStartTick();
-    note->setDurationTick(firstDuration);
+    const qint64 end = note->getEndTick();
+    note->setDurationTick(splitTick - note->getStartTick());
     Note second = note->clone();
     second.setStartTick(splitTick);
-    second.setDurationTick(oldEnd - splitTick);
-    second.setLyric(note->getLyric());
+    second.setDurationTick(end - splitTick);
     second.setSelected(false);
     m_project->tracks()[m_activeTrack].addNote(std::move(second));
     sortNotes();
@@ -285,9 +261,7 @@ void PianoRollEditor::beginLyricEdit(Note& note)
     m_lyricEditor = new QLineEdit(viewport());
     m_lyricEditor->setText(note.getLyric());
     m_lyricEditor->selectAll();
-    const QRect r = noteRect(note).adjusted(2, 1, -2, -1);
-    m_lyricEditor->setGeometry(r);
-    m_lyricEditor->setFrame(true);
+    m_lyricEditor->setGeometry(noteRect(note).adjusted(2, 1, -2, -1));
     m_lyricEditor->setFocus();
     connect(m_lyricEditor, &QLineEdit::editingFinished, this, [this] { finishLyricEdit(true); });
 }
@@ -295,7 +269,7 @@ void PianoRollEditor::beginLyricEdit(Note& note)
 void PianoRollEditor::finishLyricEdit(bool accept)
 {
     if (!m_lyricEditor) return;
-    if (accept && m_project && m_activeTrack >= 0 && m_activeTrack < static_cast<int>(m_project->tracks().size())) {
+    if (accept && m_project && m_activeTrack >= 0 && m_activeTrack < m_project->tracks().size()) {
         if (Note* note = m_project->tracks()[m_activeTrack].findNote(m_editingLyricId)) {
             note->setLyric(m_lyricEditor->text());
             emit documentChanged();
@@ -309,40 +283,36 @@ void PianoRollEditor::finishLyricEdit(bool accept)
 
 void PianoRollEditor::commitRightDragNote()
 {
-    if (!m_rightDrawing || m_rightDrawId < 0 || !m_project) return;
+    if (!m_rightDrawing || !m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
     auto& notes = m_project->tracks()[m_activeTrack].notes();
-    Note* note = nullptr;
-    for (auto& n : notes) if (n.getId() == m_rightDrawId) { note = &n; break; }
-    if (!note) return;
-    if (note->getDurationTick() <= 0) {
-        notes.removeIf([this](const Note& n) { return n.getId() == m_rightDrawId; });
-    }
-    m_rightDrawId = -1;
+    bool found = false;
+    for (const auto& note : notes) if (note.getId() == m_rightDrawId) { found = true; break; }
+    if (!found) m_rightDrawId = -1;
     m_rightDrawing = false;
 }
 
 void PianoRollEditor::sortNotes()
 {
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
     auto& notes = m_project->tracks()[m_activeTrack].notes();
     std::sort(notes.begin(), notes.end(), [](const Note& a, const Note& b) {
-        if (a.getStartTick() != b.getStartTick()) return a.getStartTick() < b.getStartTick();
-        return a.getMidiNote() < b.getMidiNote();
+        return a.getStartTick() == b.getStartTick() ? a.getMidiNote() < b.getMidiNote() : a.getStartTick() < b.getStartTick();
     });
 }
 
 void PianoRollEditor::drawPitchPoint(Note& note, const QPoint& pos)
 {
     const QRect r = noteRect(note);
-    if (!r.contains(pos)) return;
-    const double pxPerMs = std::max(0.0001, static_cast<double>(r.width()) / std::max<qint64>(1, note.getDurationTick()));
-    const double localTick = std::clamp(static_cast<double>((pos.x() - r.left()) / pxPerMs), 0.0, static_cast<double>(note.getDurationTick()));
+    if (!r.contains(pos) || !m_project) return;
+    const double u = std::clamp(static_cast<double>(pos.x() - r.left()) / std::max(1, r.width()), 0.0, 1.0);
+    const qint64 localTick = static_cast<qint64>(std::llround(u * note.getDurationTick()));
+    const double startMs = m_project->tempoMap().tickToSeconds(static_cast<double>(note.getStartTick()), m_project->ppq()) * 1000.0;
+    const double pointMs = m_project->tempoMap().tickToSeconds(static_cast<double>(note.getStartTick() + localTick), m_project->ppq()) * 1000.0;
+    const double localMs = std::max(0.0, pointMs - startMs);
     const double semitoneOffset = (r.center().y() - pos.y()) / kPitchSemitonePixels;
     auto& points = note.getPitchCurve().points();
-    auto it = std::find_if(points.begin(), points.end(), [localTick](const PitchPoint& p) {
-        return std::abs(p.time - localTick) < 4.0;
-    });
-    PitchPoint point{localTick, semitoneOffset};
+    auto it = std::find_if(points.begin(), points.end(), [localMs](const PitchPoint& point) { return std::abs(point.time - localMs) < 8.0; });
+    const PitchPoint point{localMs, std::clamp(semitoneOffset, -24.0, 24.0)};
     if (it != points.end()) *it = point;
     else points.push_back(point);
     std::sort(points.begin(), points.end(), [](const PitchPoint& a, const PitchPoint& b) { return a.time < b.time; });
@@ -354,8 +324,7 @@ void PianoRollEditor::beginPitchDraw(const QPoint& pos)
         m_pitchNoteId = note->getId();
         drawPitchPoint(*note, pos);
         m_pitchDrawing = true;
-        emit documentChanged();
-        invalidate();
+        viewport()->update();
     }
 }
 
@@ -371,29 +340,30 @@ void PianoRollEditor::finishPitchDraw()
 void PianoRollEditor::paintEvent(QPaintEvent*)
 {
     QPainter p(viewport());
+    p.setRenderHint(QPainter::Antialiasing, true);
     p.fillRect(viewport()->rect(), QColor("#101317"));
-    if (!m_project || m_activeTrack < 0 || m_activeTrack >= static_cast<int>(m_project->tracks().size())) return;
+    if (!m_project || m_activeTrack < 0 || m_activeTrack >= m_project->tracks().size()) return;
 
     const int sx = horizontalScrollBar()->value();
     const int sy = verticalScrollBar()->value();
-    const int firstMidi = std::clamp(m_topMidi - sy / std::max(1, m_rowHeight), 0, 127);
-    const int lastMidi = std::clamp(firstMidi - viewport()->height() / std::max(1, m_rowHeight) - 1, 0, 127);
+    const int topMidi = std::clamp(m_topMidi - sy / std::max(1, m_rowHeight), 127, 127);
+    const int bottomMidi = std::clamp(m_topMidi - (sy + viewport()->height()) / std::max(1, m_rowHeight), 0, 127);
+
+    for (int midi = bottomMidi; midi <= topMidi; ++midi) {
+        const int y = (m_topMidi - midi) * m_rowHeight - sy;
+        const bool black = ((midi % 12) == 1 || (midi % 12) == 3 || (midi % 12) == 6 || (midi % 12) == 8 || (midi % 12) == 10);
+        p.fillRect(0, y, viewport()->width(), m_rowHeight, black ? QColor("#0d1014") : QColor("#15191f"));
+        p.setPen(QColor("#242a31"));
+        p.drawLine(0, y + m_rowHeight - 1, viewport()->width(), y + m_rowHeight - 1);
+    }
 
     if (m_showGrid) {
-        for (int midi = lastMidi; midi <= firstMidi; ++midi) {
-            const int y = (m_topMidi - midi) * m_rowHeight - sy;
-            const bool black = (((midi % 12) == 1) || ((midi % 12) == 3) || ((midi % 12) == 6) || ((midi % 12) == 8) || ((midi % 12) == 10));
-            p.fillRect(0, y, viewport()->width(), m_rowHeight, black ? QColor("#0d1014") : QColor("#15191f"));
-            p.setPen(QColor("#242a31"));
-            p.drawLine(0, y + m_rowHeight - 1, viewport()->width(), y + m_rowHeight - 1);
-        }
-
         const qint64 maxTick = SongTime::pixelToTick(viewport()->width() + sx, m_pxPerBeat);
         for (qint64 tick = 0; tick <= maxTick + m_gridTicks; tick += m_gridTicks) {
             const int x = qRound(SongTime::tickToPixel(tick, m_pxPerBeat)) - sx;
             if (x < 0 || x > viewport()->width()) continue;
-            p.setPen(QPen((tick % (m_gridTicks * 4) == 0) ? QColor("#3c4652") : QColor("#252c34"),
-                          tick % (m_gridTicks * 4) == 0 ? 1.3 : 1.0));
+            const bool bar = tick % std::max<qint64>(1, m_gridTicks * 4) == 0;
+            p.setPen(QPen(bar ? QColor("#3c4652") : QColor("#252c34"), bar ? 1.3 : 1.0));
             p.drawLine(x, 0, x, viewport()->height());
         }
     }
@@ -414,21 +384,28 @@ void PianoRollEditor::paintEvent(QPaintEvent*)
 
         const auto& points = note.getPitchCurve().points();
         if (!points.empty()) {
-            QPainterPath path;
-            const double noteTicks = static_cast<double>(std::max<qint64>(1, note.getDurationTick()));
+            const double noteStartMs = m_project->tempoMap().tickToSeconds(static_cast<double>(note.getStartTick()), m_project->ppq()) * 1000.0;
+            const double noteEndMs = m_project->tempoMap().tickToSeconds(static_cast<double>(note.getEndTick()), m_project->ppq()) * 1000.0;
+            const double durationMs = std::max(0.001, noteEndMs - noteStartMs);
             const int samples = std::max(2, r.width() / 3);
+            QPainterPath path;
             for (int i = 0; i <= samples; ++i) {
                 const double u = static_cast<double>(i) / samples;
-                const double localTick = u * noteTicks;
-                const double offset = note.getPitchCurve().evaluateSmooth(localTick);
+                const double localMs = u * durationMs;
+                const double offset = note.getPitchCurve().evaluateSmooth(localMs);
                 const double x = r.left() + u * r.width();
                 const double y = r.center().y() - offset * kPitchSemitonePixels;
-                if (i == 0) path.moveTo(x, y);
-                else path.lineTo(x, y);
+                if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
             }
-            p.setPen(QPen(QColor("#ffd166"), 1.6));
+            p.setPen(QPen(QColor("#ffd166"), 2.0));
             p.setBrush(Qt::NoBrush);
             p.drawPath(path);
+            p.setBrush(QColor("#fff0a5"));
+            for (const auto& point : points) {
+                const double u = std::clamp(point.time / durationMs, 0.0, 1.0);
+                const QPointF center(r.left() + u * r.width(), r.center().y() - point.semitoneOffset * kPitchSemitonePixels);
+                p.drawEllipse(center, 2.5, 2.5);
+            }
         }
     }
 
@@ -455,85 +432,105 @@ void PianoRollEditor::mousePressEvent(QMouseEvent* event)
         return;
     }
 
-    if (event->button() == Qt::LeftButton && (m_tool == EditTool::Select || m_tool == EditTool::Pen || m_tool == EditTool::PenPlus || m_tool == EditTool::Pitch || m_tool == EditTool::PitchLine || m_tool == EditTool::Vibrato)) {
-        if (m_tool == EditTool::Pitch || m_tool == EditTool::PitchLine) {
-            beginPitchDraw(pos);
-            return;
-        }
+    if (event->button() == Qt::LeftButton && (m_tool == EditTool::Pitch || m_tool == EditTool::PitchLine)) {
+        beginPitchDraw(pos);
+        return;
+    }
 
+    if (event->button() == Qt::LeftButton && (m_tool == EditTool::Select || m_tool == EditTool::Pen || m_tool == EditTool::PenPlus || m_tool == EditTool::Eraser || m_tool == EditTool::Knife || m_tool == EditTool::Vibrato)) {
         Note* note = noteAt(pos);
         if (!note) {
             if (m_tool == EditTool::Select) {
                 m_playhead = tickAtX(pos.x());
                 emit requestPlaybackTick(m_playhead);
-                emit keyboardPreviewRequested(midiAtY(pos.y()));
                 m_playheadDragging = true;
                 viewport()->update();
+            } else if (m_tool == EditTool::Eraser) {
+                // Nothing to erase.
             } else {
                 createNote(pos);
             }
             return;
         }
 
+        // The right edge is always resizeable, including Pen mode.
+        if ((m_tool == EditTool::Select || m_tool == EditTool::Pen || m_tool == EditTool::PenPlus) && isResizeHandle(*note, pos)) {
+            for (auto& n : m_project->tracks()[m_activeTrack].notes()) n.setSelected(false);
+            note->setSelected(true);
+            m_dragging = true;
+            m_resizing = true;
+            m_resizeId = note->getId();
+            m_resizeOriginalEnd = note->getEndTick();
+            m_mouseMovedDuringDrag = false;
+            m_dragAnchorTick = tickAtX(pos.x());
+            m_lastPos = pos;
+            return;
+        }
+
+        if (m_tool == EditTool::Eraser) {
+            deleteNoteAt(pos);
+            return;
+        }
+        if (m_tool == EditTool::Knife) {
+            splitNoteAt(pos);
+            return;
+        }
         if (m_tool == EditTool::Pen || m_tool == EditTool::PenPlus) {
             beginLyricEdit(*note);
             return;
         }
-
-        if (m_tool == EditTool::Select) {
-            const bool additive = event->modifiers().testFlag(Qt::ControlModifier) || event->modifiers().testFlag(Qt::ShiftModifier);
-            if (!additive) {
-                for (auto& n : m_project->tracks()[m_activeTrack].notes()) n.setSelected(false);
-            }
-            note->setSelected(true);
-            m_dragging = true;
-            m_mouseMovedDuringDrag = false;
-            m_lastPos = pos;
-            m_dragAnchorTick = tickAtX(pos.x());
-            m_dragAnchorPitch = midiAtY(pos.y());
-            m_dragIds.clear();
-            m_dragOriginalStart.clear();
-            m_dragOriginalEnd.clear();
-            m_dragOriginalPitch.clear();
-            for (const auto& n : m_project->tracks()[m_activeTrack].notes()) {
-                if (!n.isSelected()) continue;
-                m_dragIds.push_back(n.getId());
-                m_dragOriginalStart.insert(n.getId(), n.getStartTick());
-                m_dragOriginalEnd.insert(n.getId(), n.getEndTick());
-                m_dragOriginalPitch.insert(n.getId(), n.getMidiNote());
-            }
-            if (isResizeHandle(*note, pos)) {
-                m_resizing = true;
-                m_resizeId = note->getId();
-                m_resizeOriginalEnd = note->getEndTick();
-            }
-            viewport()->update();
+        if (m_tool == EditTool::Vibrato) {
+            note->setVibrato(Vibrato{});
+            emit documentChanged();
+            invalidate();
+            return;
         }
+
+        const bool additive = event->modifiers().testFlag(Qt::ControlModifier) || event->modifiers().testFlag(Qt::ShiftModifier);
+        if (!additive) for (auto& n : m_project->tracks()[m_activeTrack].notes()) n.setSelected(false);
+        note->setSelected(true);
+        m_dragging = true;
+        m_mouseMovedDuringDrag = false;
+        m_lastPos = pos;
+        m_dragAnchorTick = tickAtX(pos.x());
+        m_dragAnchorPitch = midiAtY(pos.y());
+        m_dragIds.clear();
+        m_dragOriginalStart.clear();
+        m_dragOriginalEnd.clear();
+        m_dragOriginalPitch.clear();
+        for (const auto& n : m_project->tracks()[m_activeTrack].notes()) {
+            if (!n.isSelected()) continue;
+            m_dragIds.push_back(n.getId());
+            m_dragOriginalStart.insert(n.getId(), n.getStartTick());
+            m_dragOriginalEnd.insert(n.getId(), n.getEndTick());
+            m_dragOriginalPitch.insert(n.getId(), n.getMidiNote());
+        }
+        viewport()->update();
     } else if (event->button() == Qt::RightButton) {
         const qint64 start = tickAtX(pos.x());
         const int midi = midiAtY(pos.y());
         const qint64 end = start + std::max<qint64>(1, m_gridTicks);
         if (!hasTimeOverlap(start, end)) {
-            Note n;
-            n.setStartTick(start);
-            n.setDurationTick(end - start);
-            n.setMidiNote(midi);
-            n.setLyric(QStringLiteral("a"));
-            n.setSelected(true);
-            for (auto& other : m_project->tracks()[m_activeTrack].notes()) other.setSelected(false);
-            m_rightDrawStart = start;
-            m_rightDrawPitch = midi;
-            m_project->tracks()[m_activeTrack].addNote(std::move(n));
+            for (auto& n : m_project->tracks()[m_activeTrack].notes()) n.setSelected(false);
+            Note note;
+            note.setStartTick(start);
+            note.setDurationTick(end - start);
+            note.setMidiNote(midi);
+            note.setLyric(QStringLiteral("a"));
+            note.setSelected(true);
+            m_project->tracks()[m_activeTrack].addNote(std::move(note));
             sortNotes();
-            for (const auto& created : m_project->tracks()[m_activeTrack].notes()) {
-                if (created.getStartTick() == start && created.getMidiNote() == midi && created.isSelected()) {
-                    m_rightDrawId = created.getId();
+            for (const auto& n : m_project->tracks()[m_activeTrack].notes()) {
+                if (n.getStartTick() == start && n.getMidiNote() == midi && n.isSelected()) {
+                    m_rightDrawId = n.getId();
                     break;
                 }
             }
+            m_rightDrawStart = start;
+            m_rightDrawPitch = midi;
             m_rightDrawing = m_rightDrawId >= 0;
             emit keyboardPreviewRequested(midi);
-            invalidate();
+            viewport()->update();
         }
     }
 }
@@ -546,23 +543,21 @@ void PianoRollEditor::mouseMoveEvent(QMouseEvent* event)
         horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
         verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
         m_lastPos = pos;
-        viewport()->update();
         return;
     }
 
     if (m_pitchDrawing && m_project) {
         if (Note* note = m_project->tracks()[m_activeTrack].findNote(m_pitchNoteId)) {
             drawPitchPoint(*note, pos);
-            emit documentChanged();
-            invalidate();
+            viewport()->update();
         }
         return;
     }
 
+    // Important: dragging the playhead only seeks. Do NOT trigger note-preview tones here.
     if (m_playheadDragging && (event->buttons() & Qt::LeftButton)) {
         m_playhead = tickAtX(pos.x());
         emit requestPlaybackTick(m_playhead);
-        emit keyboardPreviewRequested(midiAtY(pos.y()));
         viewport()->update();
         return;
     }
@@ -573,7 +568,7 @@ void PianoRollEditor::mouseMoveEvent(QMouseEvent* event)
         const qint64 end = tickAtX(pos.x());
         const qint64 clampedEnd = availableEndForNote(*note, std::max(note->getStartTick() + 1, end));
         note->setDurationTick(clampedEnd - note->getStartTick());
-        invalidate();
+        viewport()->update();
         return;
     }
 
@@ -582,41 +577,33 @@ void PianoRollEditor::mouseMoveEvent(QMouseEvent* event)
 
     const qint64 currentTick = tickAtX(pos.x());
     const qint64 desiredDelta = currentTick - m_dragAnchorTick;
-    const int currentPitch = midiAtY(pos.y());
-    const int pitchDelta = currentPitch - m_dragAnchorPitch;
-
     if (m_resizing) {
-        Note* note = m_project->tracks()[m_activeTrack].findNote(m_resizeId);
-        if (!note) return;
-        const qint64 desiredEnd = snapTick(m_resizeOriginalEnd + desiredDelta);
-        const qint64 end = availableEndForNote(*note, desiredEnd);
-        if (end > note->getStartTick()) {
-            note->setDurationTick(end - note->getStartTick());
-            emit documentChanged();
-            invalidate();
+        if (Note* note = m_project->tracks()[m_activeTrack].findNote(m_resizeId)) {
+            const qint64 desiredEnd = snapTick(m_resizeOriginalEnd + desiredDelta);
+            const qint64 end = availableEndForNote(*note, desiredEnd);
+            if (end > note->getStartTick()) note->setDurationTick(end - note->getStartTick());
         }
+        viewport()->update();
         return;
     }
 
+    const int pitchDelta = midiAtY(pos.y()) - m_dragAnchorPitch;
     const qint64 delta = constrainedMoveDelta(desiredDelta);
     auto& notes = m_project->tracks()[m_activeTrack].notes();
     for (auto& note : notes) {
         if (!m_dragOriginalStart.contains(note.getId())) continue;
-        const qint64 newStart = std::max<qint64>(0, m_dragOriginalStart.value(note.getId()) + delta);
-        note.setStartTick(newStart);
+        note.setStartTick(std::max<qint64>(0, m_dragOriginalStart.value(note.getId()) + delta));
         note.setMidiNote(std::clamp(m_dragOriginalPitch.value(note.getId()) + pitchDelta, 0, 127));
     }
     sortNotes();
-    m_lastPos = pos;
-    emit documentChanged();
-    invalidate();
+    viewport()->update();
 }
 
 void PianoRollEditor::mouseReleaseEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::MiddleButton || m_panning) {
         m_panning = false;
-        setCursor(Qt::ArrowCursor);
+        setTool(m_tool);
         return;
     }
     if (event->button() == Qt::LeftButton) {
@@ -626,6 +613,7 @@ void PianoRollEditor::mouseReleaseEvent(QMouseEvent* event)
             emit requestPlaybackTick(m_playhead);
         }
         if (m_dragging) {
+            if (m_mouseMovedDuringDrag) emit documentChanged();
             m_dragging = false;
             m_resizing = false;
             m_resizeId = -1;
@@ -633,7 +621,7 @@ void PianoRollEditor::mouseReleaseEvent(QMouseEvent* event)
             m_dragOriginalStart.clear();
             m_dragOriginalEnd.clear();
             m_dragOriginalPitch.clear();
-            if (m_mouseMovedDuringDrag) emit documentChanged();
+            invalidate();
         }
     } else if (event->button() == Qt::RightButton) {
         commitRightDragNote();
@@ -662,12 +650,22 @@ void PianoRollEditor::keyPressEvent(QKeyEvent* event)
         QAbstractScrollArea::keyPressEvent(event);
         return;
     }
+    if (event->matches(QKeySequence::SelectAll)) {
+        if (m_project && m_activeTrack >= 0 && m_activeTrack < m_project->tracks().size()) {
+            for (auto& note : m_project->tracks()[m_activeTrack].notes()) note.setSelected(true);
+            viewport()->update();
+        }
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_Delete || event->key() == Qt::Key_Backspace) {
-        if (!m_project) return;
-        auto& notes = m_project->tracks()[m_activeTrack].notes();
-        notes.erase(std::remove_if(notes.begin(), notes.end(), [](const Note& n) { return n.isSelected(); }), notes.end());
-        emit documentChanged();
-        invalidate();
+        if (m_project && m_activeTrack >= 0 && m_activeTrack < m_project->tracks().size()) {
+            auto& notes = m_project->tracks()[m_activeTrack].notes();
+            notes.erase(std::remove_if(notes.begin(), notes.end(), [](const Note& note) { return note.isSelected(); }), notes.end());
+            emit documentChanged();
+            invalidate();
+        }
+        event->accept();
         return;
     }
     if (event->key() == Qt::Key_Space) {
@@ -681,20 +679,15 @@ void PianoRollEditor::keyPressEvent(QKeyEvent* event)
 void PianoRollEditor::mouseDoubleClickEvent(QMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton || !m_project) return;
-    if (Note* note = noteAt(event->pos())) {
-        beginLyricEdit(*note);
-    } else {
-        createNote(event->pos());
-    }
+    if (Note* note = noteAt(event->pos())) beginLyricEdit(*note);
+    else createNote(event->pos());
 }
 
 void PianoRollEditor::updateScrollRanges()
 {
     qint64 maxTick = 3840;
     if (m_project) {
-        for (const auto& track : m_project->tracks()) {
-            for (const auto& note : track.notes()) maxTick = std::max(maxTick, note.getEndTick() + 960);
-        }
+        for (const auto& track : m_project->tracks()) for (const auto& note : track.notes()) maxTick = std::max(maxTick, note.getEndTick() + 960);
     }
     horizontalScrollBar()->setRange(0, std::max(0, qRound(SongTime::tickToPixel(maxTick, m_pxPerBeat)) - viewport()->width()));
     verticalScrollBar()->setRange(0, std::max(0, 128 * m_rowHeight - viewport()->height()));
@@ -706,4 +699,4 @@ void PianoRollEditor::invalidate()
     viewport()->update();
 }
 
-} // namespace myvocal
+}
