@@ -14,6 +14,33 @@ std::filesystem::path normalizePath(const std::filesystem::path& path)
     }
     return std::filesystem::absolute(path, ec);
 }
+
+void collectVoiceBankRoots(const std::filesystem::path& requested,
+                           std::vector<std::filesystem::path>& out)
+{
+    if (requested.empty()) {
+        return;
+    }
+
+    out.push_back(requested);
+
+    // The executable is normally inside out/build/... while VoiceBanks lives
+    // at the project root. Walk upward so launching from the IDE or build
+    // directory does not make the bundled banks invisible.
+    std::filesystem::path cursor = requested;
+    if (cursor.filename() == "VoiceBanks") {
+        cursor = cursor.parent_path();
+    }
+
+    for (int depth = 0; depth < 8 && !cursor.empty(); ++depth) {
+        out.push_back(cursor / "VoiceBanks");
+        const auto parent = cursor.parent_path();
+        if (parent == cursor) {
+            break;
+        }
+        cursor = parent;
+    }
+}
 }
 
 void SingerManager::scan(const std::filesystem::path& root)
@@ -26,8 +53,13 @@ void SingerManager::scan(const std::vector<std::filesystem::path>& roots)
     m_singers.clear();
     m_roots.clear();
 
-    std::set<std::filesystem::path> uniqueRoots;
+    std::vector<std::filesystem::path> expandedRoots;
     for (const auto& root : roots) {
+        collectVoiceBankRoots(root, expandedRoots);
+    }
+
+    std::set<std::filesystem::path> uniqueRoots;
+    for (const auto& root : expandedRoots) {
         if (root.empty()) {
             continue;
         }
