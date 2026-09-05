@@ -12,6 +12,7 @@ class PhonemeStripEditor final : public QAbstractScrollArea {
     Q_OBJECT
 public:
     explicit PhonemeStripEditor(Project* project, QWidget* parent = nullptr);
+    void setProject(Project* project);
     void setActiveTrack(int index);
     void setPlayheadMs(qint64 ms);
     void setPixelsPerSecond(double pixels);
