@@ -57,6 +57,19 @@ void TrackPanel::refresh()
     for (int i = 0; i < m_project->tracks().size(); ++i) {
         Track& track = m_project->tracks()[i];
 
+        // A project created before VoiceBank discovery was fixed can have an
+        // empty singerPath. Bind it to the first valid singer now, so the
+        // editor never silently presents a voice-less track when a bank exists.
+        if (track.singerPath().isEmpty() && m_singers) {
+            for (const auto& candidate : m_singers->singers()) {
+                if (candidate->isValid()) {
+                    track.setSingerPath(
+                        QString::fromStdWString(candidate->path().wstring()));
+                    break;
+                }
+            }
+        }
+
         auto* item = new QListWidgetItem(this);
         item->setSizeHint(QSize(300, 116));
 
