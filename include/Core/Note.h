@@ -25,6 +25,7 @@ public:
     PitchCurve& getPitchCurve() noexcept;
     const Vibrato& getVibrato() const noexcept;
     Vibrato& getVibrato() noexcept;
+    void setVibrato(const Vibrato& v);
     double getPreutterance() const noexcept;
     void setPreutterance(double v);
     double getOverlap() const noexcept;
