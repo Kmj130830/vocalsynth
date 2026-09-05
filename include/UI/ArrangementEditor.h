@@ -5,8 +5,8 @@
 #include "Core/Project.h"
 
 class QDoubleSpinBox;
-class QEvent;
 class QMouseEvent;
+class QResizeEvent;
 
 namespace myvocal {
 
@@ -44,6 +44,8 @@ private:
     int m_trackHeight{56};
     double m_pixelsPerSecond{90.0};
     bool m_draggingPlayhead{false};
+    int m_draggingAudioIndex{-1};
+    qint64 m_audioDragOffsetMs{0};
     QDoubleSpinBox* m_bpmSpin{nullptr};
 };
 
