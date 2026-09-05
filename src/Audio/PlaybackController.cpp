@@ -96,7 +96,7 @@ void PlaybackController::startRender(bool playAfter)
     m_preparing = playAfter;
     if (playAfter) emit preparingChanged(true);
 
-    m_thread = std::make_unique<QThread>(QThread::create([this, project, renderer, output, generation] {
+    m_thread.reset(QThread::create([this, project, renderer, output, generation] {
         QString error;
         const bool ok = renderer && project && renderer->renderProject(*project, output, &error);
         QMetaObject::invokeMethod(this, [this, ok, error, output, generation] {
@@ -119,7 +119,7 @@ void PlaybackController::startRender(bool playAfter)
 
             if (!ok && wasPreparing) {
                 emit playbackError(error.isEmpty() ? QStringLiteral("Voice playback rendering failed.") : error);
-            } else if (current && shouldPlay && !m_cachedWav.isEmpty()) {
+            } else if (current && shouldPlay && !m_cachedWav.isEmpty() && m_audio && m_project) {
                 m_audio->load(m_cachedWav);
                 m_audio->setBackingClips(m_project->audioClips());
                 m_audio->seek(pending);
@@ -130,6 +130,9 @@ void PlaybackController::startRender(bool playAfter)
             }
         }, Qt::QueuedConnection);
     }));
+    connect(m_thread.get(), &QThread::finished, this, [this] {
+        if (m_thread && !m_thread->isRunning()) m_thread.reset();
+    });
     m_thread->start();
 }
 
@@ -145,9 +148,13 @@ void PlaybackController::stop(bool returnToStart)
     const qint64 current = m_audio->position();
     m_pendingPlayMs = -1;
     if (returnToStart) {
-        m_audio->stop(false); m_audio->seek(m_startMs); emit positionChanged(m_startMs);
+        m_audio->stop(false);
+        m_audio->seek(m_startMs);
+        emit positionChanged(m_startMs);
     } else {
-        m_audio->stop(true); m_audio->seek(current); emit positionChanged(current);
+        m_audio->stop(true);
+        m_audio->seek(current);
+        emit positionChanged(current);
     }
     emit stateChanged(false);
 }
@@ -159,7 +166,11 @@ qint64 PlaybackController::playbackStartMs() const noexcept { return m_startMs; 
 void PlaybackController::cleanupThread()
 {
     if (!m_thread) return;
-    if (m_thread->isRunning()) { m_thread->requestInterruption(); m_thread->quit(); m_thread->wait(); }
+    if (m_thread->isRunning()) {
+        m_thread->requestInterruption();
+        m_thread->quit();
+        m_thread->wait();
+    }
     m_thread.reset();
     m_preparing = false;
     m_backgroundRendering = false;
