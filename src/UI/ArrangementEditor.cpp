@@ -1,49 +1,64 @@
 #include "UI/ArrangementEditor.h"
 
-#include "Phonemizer/DefaultCVPhonemizer.h"
-#include "Phonemizer/HybridJapanesePhonemizer.h"
-#include "Phonemizer/JapaneseCVVCPhonemizer.h"
-#include "Phonemizer/JapaneseVCVPhonemizer.h"
-#include "Phonemizer/KoreanCBNNPhonemizer.h"
-#include "Phonemizer/KoreanVCVPhonemizer.h"
-#include "Singer/Singer.h"
-
+#include <QDoubleSpinBox>
+#include <QFileInfo>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
+#include <QWidget>
 
 #include <algorithm>
-#include <memory>
 
 namespace myvocal {
-namespace {
-
-std::unique_ptr<IPhonemizer> makePhonemizer(const QString& name)
-{
-    if (name == QStringLiteral("Japanese VCV")) return std::make_unique<JapaneseVCVPhonemizer>();
-    if (name == QStringLiteral("Japanese CVVC")) return std::make_unique<JapaneseCVVCPhonemizer>();
-    if (name == QStringLiteral("Hybrid Japanese") || name == QStringLiteral("Japanese VCV / CVVC Hybrid")) return std::make_unique<HybridJapanesePhonemizer>();
-    if (name == QStringLiteral("Korean VCV")) return std::make_unique<KoreanVCVPhonemizer>();
-    if (name == QStringLiteral("Korean CBNN")) return std::make_unique<KoreanCBNNPhonemizer>();
-    return std::make_unique<DefaultCVPhonemizer>();
-}
-
-}
 
 ArrangementEditor::ArrangementEditor(Project* project, QWidget* parent)
     : QAbstractScrollArea(parent), m_project(project)
 {
-    setMinimumHeight(170);
+    setMinimumHeight(210);
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
     setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setViewportMargins(0, 38, 0, 0);
+
+    auto* header = new QWidget(this);
+    header->setStyleSheet(QStringLiteral("QWidget { background:#181b20; border-bottom:1px solid #343a42; } QLabel { color:#c7cdd5; } QDoubleSpinBox { background:#242931; color:#edf2f7; border:1px solid #414954; padding:2px 5px; min-width:72px; }"));
+    auto* layout = new QHBoxLayout(header);
+    layout->setContentsMargins(10, 4, 10, 4);
+    layout->setSpacing(8);
+    layout->addWidget(new QLabel(QStringLiteral("Arrangement"), header));
+    layout->addSpacing(18);
+    layout->addWidget(new QLabel(QStringLiteral("BPM"), header));
+    m_bpmSpin = new QDoubleSpinBox(header);
+    m_bpmSpin->setRange(20.0, 999.0);
+    m_bpmSpin->setDecimals(2);
+    m_bpmSpin->setSingleStep(1.0);
+    m_bpmSpin->setValue(m_project ? m_project->tempoMap().bpm() : 120.0);
+    layout->addWidget(m_bpmSpin);
+    layout->addStretch(1);
+    header->setObjectName(QStringLiteral("ArrangementHeader"));
+
+    connect(m_bpmSpin, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double bpm) {
+        if (!m_project) return;
+        m_project->tempoMap().setBpm(bpm);
+        updateScrollRanges();
+        viewport()->update();
+        emit documentChanged();
+    });
+
+    updateHeaderGeometry();
     updateScrollRanges();
 }
 
 void ArrangementEditor::setProject(Project* project)
 {
     m_project = project;
+    if (m_bpmSpin) {
+        QSignalBlocker blocker(m_bpmSpin);
+        m_bpmSpin->setValue(m_project ? m_project->tempoMap().bpm() : 120.0);
+    }
     updateScrollRanges();
     viewport()->update();
 }
@@ -55,7 +70,7 @@ void ArrangementEditor::setPlayheadMs(qint64 ms)
     const int left = horizontalScrollBar()->value();
     const int view = viewport()->width();
     if (x < left) horizontalScrollBar()->setValue(std::max(0, x - view / 5));
-    else if (x > left + view * 4 / 5) horizontalScrollBar()->setValue(std::max(0, x - view / 5));
+    else if (x > left + view * 4 / 5) horizontalScrollBar()->setValue(std::max(0, x - view * 2 / 5));
     viewport()->update();
 }
 
@@ -63,7 +78,7 @@ qint64 ArrangementEditor::playheadMs() const noexcept { return m_playheadMs; }
 
 void ArrangementEditor::setTrackHeight(int pixels)
 {
-    m_trackHeight = std::clamp(pixels, 50, 110);
+    m_trackHeight = std::clamp(pixels, 44, 100);
     updateScrollRanges();
     viewport()->update();
 }
@@ -81,96 +96,120 @@ qint64 ArrangementEditor::msAtX(int x) const
     return std::max<qint64>(0, qRound64(sceneX / m_pixelsPerSecond * 1000.0));
 }
 
-int ArrangementEditor::yForTrack(int trackIndex) const
+int ArrangementEditor::trackAtY(int y) const
 {
-    return trackIndex * m_trackHeight - verticalScrollBar()->value();
+    const int index = (y + verticalScrollBar()->value()) / m_trackHeight;
+    const int count = m_project ? static_cast<int>(m_project->tracks().size()) : 0;
+    return index >= 0 && index < count ? index : -1;
 }
 
 void ArrangementEditor::updateScrollRanges()
 {
-    const int trackCount = m_project ? std::max(1, static_cast<int>(m_project->tracks().size())) : 1;
+    const int trackCount = m_project ? std::max(1, static_cast<int>(m_project->tracks().size()) + 1) : 1;
     verticalScrollBar()->setRange(0, std::max(0, trackCount * m_trackHeight - viewport()->height()));
 
-    qint64 maxMs = 60000;
+    qint64 maxMs = 30000;
     if (m_project) {
         for (const auto& track : m_project->tracks()) {
             for (const auto& note : track.notes()) {
                 maxMs = std::max(maxMs, qRound64(m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0));
             }
         }
+        for (const auto& clip : m_project->audioClips()) {
+            maxMs = std::max(maxMs, clip.startMs + std::max<qint64>(0, clip.durationMs));
+        }
     }
     horizontalScrollBar()->setRange(0, std::max(0, qRound(maxMs / 1000.0 * m_pixelsPerSecond) + 600 - viewport()->width()));
+}
+
+void ArrangementEditor::updateHeaderGeometry()
+{
+    if (auto* header = findChild<QWidget*>(QStringLiteral("ArrangementHeader"))) {
+        header->setGeometry(0, 0, width(), 38);
+    }
 }
 
 void ArrangementEditor::paintEvent(QPaintEvent*)
 {
     QPainter p(viewport());
+    p.setRenderHint(QPainter::Antialiasing, true);
     p.fillRect(viewport()->rect(), QColor("#101215"));
+
     const int sx = horizontalScrollBar()->value();
     const int sy = verticalScrollBar()->value();
-
-    const qint64 beatMs = m_project ? qRound64(60000.0 / std::max(1.0, m_project->tempoMap().bpm())) : 500;
+    const double bpm = m_project ? std::max(20.0, m_project->tempoMap().bpm()) : 120.0;
+    const qint64 beatMs = std::max<qint64>(1, qRound64(60000.0 / bpm));
     const qint64 barMs = beatMs * 4;
-    const qint64 endMs = msAtX(viewport()->width());
-    qint64 firstMs = std::max<qint64>(0, qRound64(sx / m_pixelsPerSecond * 1000.0) - 2 * beatMs);
-    firstMs = (firstMs / std::max<qint64>(1, beatMs)) * beatMs;
-    for (qint64 ms = firstMs; ms <= endMs + beatMs; ms += beatMs) {
+    const qint64 firstVisibleMs = std::max<qint64>(0, qRound64(sx / m_pixelsPerSecond * 1000.0) - beatMs * 2);
+    const qint64 endVisibleMs = msAtX(viewport()->width());
+
+    qint64 firstGrid = (firstVisibleMs / beatMs) * beatMs;
+    for (qint64 ms = firstGrid; ms <= endVisibleMs + beatMs; ms += beatMs) {
         const double x = ms / 1000.0 * m_pixelsPerSecond - sx;
         if (x < 0 || x > viewport()->width()) continue;
         const bool bar = barMs > 0 && ms % barMs == 0;
-        p.setPen(QPen(bar ? QColor("#555b64") : QColor("#292e34"), bar ? 1.5 : 1.0));
+        p.setPen(QPen(bar ? QColor("#555d68") : QColor("#272c33"), bar ? 1.5 : 1.0));
         p.drawLine(QPointF(x, 0), QPointF(x, viewport()->height()));
     }
 
     if (!m_project) return;
     const int trackCount = static_cast<int>(m_project->tracks().size());
-    for (int ti = 0; ti < trackCount; ++ti) {
-        const int y = yForTrack(ti);
-        p.fillRect(0, y, viewport()->width(), m_trackHeight, ti % 2 ? QColor("#14171a") : QColor("#181b1f"));
-        p.setPen(QColor("#30353b"));
+    for (int ti = 0; ti < trackCount + 1; ++ti) {
+        const int y = ti * m_trackHeight - sy;
+        if (y + m_trackHeight < 0 || y > viewport()->height()) continue;
+        const bool audioLane = ti == trackCount;
+        p.fillRect(0, y, viewport()->width(), m_trackHeight, ti % 2 ? QColor("#14171b") : QColor("#181b20"));
+        p.setPen(QColor("#303640"));
         p.drawLine(0, y + m_trackHeight - 1, viewport()->width(), y + m_trackHeight - 1);
 
-        const auto& track = m_project->tracks()[ti];
-        Singer singer(std::filesystem::path(track.singerPath().toStdWString()));
-        const bool singerOk = !track.singerPath().isEmpty() && singer.load();
-        std::vector<Phoneme> phonemes;
-        if (singerOk) {
-            auto phonemizer = makePhonemizer(track.phonemizer());
-            if (phonemizer) phonemes = phonemizer->process(std::vector<Note>(track.notes().cbegin(), track.notes().cend()), singer);
-        }
+        p.setPen(QColor("#b6bdc7"));
+        p.drawText(8, y + 18, audioLane ? QStringLiteral("Audio") : m_project->tracks()[ti].name());
+        if (!audioLane) {
+            const auto& track = m_project->tracks()[ti];
+            const QString singer = QFileInfo(track.singerPath()).baseName();
+            p.setPen(QColor("#717b87"));
+            p.drawText(8, y + 36, track.singerPath().isEmpty() ? QStringLiteral("No singer") : singer);
 
-        p.setPen(QColor("#aeb5bf"));
-        p.drawText(7, y + 16, QStringLiteral("Track %1").arg(ti + 1));
-
-        if (phonemes.empty()) {
-            p.setPen(QColor("#68717c"));
-            p.drawText(70, y + 16, singerOk ? QStringLiteral("No phonemes") : QStringLiteral("Singer not loaded"));
-            continue;
-        }
-
-        for (const auto& ph : phonemes) {
-            const double startMs = m_project->tempoMap().tickToSeconds(ph.startTick, m_project->ppq()) * 1000.0;
-            const double endMs = m_project->tempoMap().tickToSeconds(ph.startTick + ph.lengthTick, m_project->ppq()) * 1000.0;
-            const int x = qRound(startMs / 1000.0 * m_pixelsPerSecond) - sx;
-            const int w = std::max(12, qRound((endMs - startMs) / 1000.0 * m_pixelsPerSecond));
-            const QRect r(x, y + 25, w, m_trackHeight - 31);
-            if (!r.intersects(viewport()->rect())) continue;
-            p.setBrush(QColor("#334b63"));
-            p.setPen(QColor("#6587a8"));
-            p.drawRoundedRect(r, 3, 3);
-            p.setPen(Qt::white);
-            p.drawText(r.adjusted(4, 0, -4, 0), Qt::AlignCenter, ph.alias.isEmpty() ? QStringLiteral("?") : ph.alias);
+            for (const auto& note : track.notes()) {
+                const double startMs = m_project->tempoMap().tickToSeconds(note.getStartTick(), m_project->ppq()) * 1000.0;
+                const double endMs = m_project->tempoMap().tickToSeconds(note.getEndTick(), m_project->ppq()) * 1000.0;
+                const int x = qRound(startMs / 1000.0 * m_pixelsPerSecond) - sx;
+                const int w = std::max(2, qRound((endMs - startMs) / 1000.0 * m_pixelsPerSecond));
+                const QRect r(x, y + 6, w, m_trackHeight - 12);
+                if (!r.intersects(viewport()->rect())) continue;
+                p.setBrush(track.muted() ? QColor("#33363b") : QColor("#385a7e"));
+                p.setPen(track.solo() ? QColor("#f1c75b") : QColor("#5f84a9"));
+                p.drawRoundedRect(r, 3, 3);
+                if (w > 18) {
+                    p.setPen(QColor("#edf3f9"));
+                    p.drawText(r.adjusted(5, 0, -5, 0), Qt::AlignCenter, note.getLyric());
+                }
+            }
+        } else {
+            for (const auto& clip : m_project->audioClips()) {
+                if (clip.muted) continue;
+                const int x = qRound(clip.startMs / 1000.0 * m_pixelsPerSecond) - sx;
+                const int w = std::max(12, qRound(clip.durationMs / 1000.0 * m_pixelsPerSecond));
+                const QRect r(x, y + 8, w, m_trackHeight - 16);
+                if (!r.intersects(viewport()->rect())) continue;
+                p.setBrush(QColor("#3e4148"));
+                p.setPen(QColor("#808791"));
+                p.drawRoundedRect(r, 4, 4);
+                p.setPen(QColor("#d4d8de"));
+                p.drawText(r.adjusted(6, 0, -6, 0), Qt::AlignLeft | Qt::AlignVCenter, QFileInfo(clip.path).fileName());
+            }
         }
     }
 
-    const int ph = qRound(m_playheadMs / 1000.0 * m_pixelsPerSecond) - sx;
+    const int px = qRound(m_playheadMs / 1000.0 * m_pixelsPerSecond) - sx;
     p.setPen(QPen(QColor("#ff5b6e"), 2));
-    p.drawLine(ph, 0, ph, viewport()->height());
+    p.drawLine(px, 0, px, viewport()->height());
 }
 
 void ArrangementEditor::resizeEvent(QResizeEvent* event)
 {
     QAbstractScrollArea::resizeEvent(event);
+    updateHeaderGeometry();
     updateScrollRanges();
 }
 
@@ -178,7 +217,9 @@ void ArrangementEditor::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() != Qt::LeftButton) return;
     setFocus();
-    m_playheadMs = msAtX(qRound(event->position().x()));
+    const QPoint pos = event->pos();
+    if (const int track = trackAtY(pos.y()); track >= 0) emit trackClicked(track);
+    m_playheadMs = msAtX(qRound(pos.x()));
     emit positionClicked(m_playheadMs);
     m_draggingPlayhead = true;
     viewport()->update();
@@ -192,6 +233,9 @@ void ArrangementEditor::mouseMoveEvent(QMouseEvent* event)
     viewport()->update();
 }
 
-void ArrangementEditor::mouseReleaseEvent(QMouseEvent*) { m_draggingPlayhead = false; }
+void ArrangementEditor::mouseReleaseEvent(QMouseEvent*)
+{
+    m_draggingPlayhead = false;
+}
 
 }
