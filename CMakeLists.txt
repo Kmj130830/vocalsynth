@@ -16,7 +16,7 @@ set(SOURCES
     src/Renderer/RenderWorker.cpp src/Renderer/Renderer.cpp src/Singer/OtoParser.cpp src/Singer/CharacterParser.cpp
     src/Singer/Singer.cpp src/Singer/SingerManager.cpp src/UI/MainToolBar.cpp src/UI/TrackPanel.cpp src/UI/TransportBar.cpp
     src/UI/PianoKeyboard.cpp src/UI/LyricEditor.cpp src/UI/PreferencesDialog.cpp src/UI/DiagnosticsDialog.cpp
-    src/UI/ArrangementEditor.cpp src/UI/PhonemeStripEditor.cpp src/Undo/UndoManager.cpp src/Utils/Logger.cpp src/Utils/ShortcutManager.cpp)
+    src/UI/ArrangementEditor.cpp src/UI/AudioSpectrumWidget.cpp src/UI/PhonemeStripEditor.cpp src/Undo/UndoManager.cpp src/Utils/Logger.cpp src/Utils/ShortcutManager.cpp)
 
 set(HEADERS
     include/App/MainWindow.h include/Audio/AudioEngine.h include/Audio/PlaybackController.h include/Core/AudioClip.h
@@ -28,14 +28,14 @@ set(HEADERS
     include/Renderer/IAudioAssembler.h include/Renderer/MoresamplerProcess.h include/Renderer/RenderWorker.h include/Renderer/Renderer.h
     include/Renderer/WaveAssembler.h include/Singer/CharacterParser.h include/Singer/OtoEntry.h include/Singer/OtoParser.h
     include/Singer/Singer.h include/Singer/SingerInfo.h include/Singer/SingerManager.h include/UI/ArrangementEditor.h
-    include/UI/PhonemeStripEditor.h include/UI/DiagnosticsDialog.h include/UI/LyricEditor.h include/UI/MainToolBar.h
+    include/UI/AudioSpectrumWidget.h include/UI/PhonemeStripEditor.h include/UI/DiagnosticsDialog.h include/UI/LyricEditor.h include/UI/MainToolBar.h
     include/UI/PianoKeyboard.h include/UI/PreferencesDialog.h include/UI/TrackPanel.h include/UI/TransportBar.h
     include/Undo/Command.h include/Undo/Commands.h include/Undo/UndoManager.h include/Utils/Logger.h include/Utils/ShortcutManager.h)
 
 set(MOC_HEADERS
     include/App/MainWindow.h include/Audio/AudioEngine.h include/Audio/PlaybackController.h include/Editor/PianoRollEditor.h
     include/Renderer/MoresamplerProcess.h include/Renderer/Renderer.h include/Renderer/RenderWorker.h include/UI/ArrangementEditor.h
-    include/UI/PhonemeStripEditor.h include/UI/DiagnosticsDialog.h include/UI/LyricEditor.h include/UI/MainToolBar.h
+    include/UI/AudioSpectrumWidget.h include/UI/PhonemeStripEditor.h include/UI/DiagnosticsDialog.h include/UI/LyricEditor.h include/UI/MainToolBar.h
     include/UI/PianoKeyboard.h include/UI/PreferencesDialog.h include/UI/TrackPanel.h include/UI/TransportBar.h include/Utils/ShortcutManager.h)
 qt_wrap_cpp(MYVOCAL_MOC_SOURCES ${MOC_HEADERS})
 add_executable(MyVocalSynth WIN32 ${SOURCES} ${HEADERS} ${MYVOCAL_MOC_SOURCES})
