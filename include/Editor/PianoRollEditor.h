@@ -9,8 +9,11 @@
 #include "Core/Project.h"
 
 class QEvent;
+class QKeyEvent;
 class QLineEdit;
 class QMouseEvent;
+class QResizeEvent;
+class QWheelEvent;
 
 namespace myvocal {
 
@@ -33,7 +36,6 @@ public:
     bool showGrid() const noexcept;
     void setGridTicks(qint64 ticks);
     qint64 gridTicks() const noexcept;
-    void setKeyboardPitch(int midi);
 
 signals:
     void documentChanged();
@@ -72,6 +74,9 @@ private:
     void finishLyricEdit(bool accept);
     void commitRightDragNote();
     void sortNotes();
+    void drawPitchPoint(Note& note, const QPoint& pos);
+    void beginPitchDraw(const QPoint& pos);
+    void finishPitchDraw();
     void invalidate();
     void updateScrollRanges();
 
@@ -93,6 +98,7 @@ private:
     bool m_panning{false};
     bool m_playheadDragging{false};
     bool m_rightDrawing{false};
+    bool m_pitchDrawing{false};
     bool m_mouseMovedDuringDrag{false};
 
     QPoint m_lastPos;
@@ -102,6 +108,7 @@ private:
     int m_dragAnchorPitch{60};
     QVector<qint64> m_dragIds;
     QHash<qint64, qint64> m_dragOriginalStart;
+    QHash<qint64, qint64> m_dragOriginalEnd;
     QHash<qint64, int> m_dragOriginalPitch;
     qint64 m_resizeId{-1};
     qint64 m_resizeOriginalEnd{0};
@@ -109,6 +116,7 @@ private:
     qint64 m_rightDrawId{-1};
     qint64 m_rightDrawStart{0};
     int m_rightDrawPitch{60};
+    qint64 m_pitchNoteId{-1};
 };
 
 }
