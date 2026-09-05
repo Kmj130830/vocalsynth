@@ -17,6 +17,7 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QMediaPlayer>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QProgressDialog>
 #include <QSettings>
@@ -36,7 +37,7 @@ QString findMoresampler(const std::filesystem::path& exeDir,
                         const std::filesystem::path& cwd)
 {
     const QString configured = QSettings().value("renderer/moresampler").toString();
-    if (!configured.isEmpty() && QFileInfo::isFile(configured)) return configured;
+    if (!configured.isEmpty() && QFileInfo(configured).isFile()) return configured;
 
     const QList<std::filesystem::path> roots = {
         exeDir / "resampler", projectRoot / "resampler", cwd / "resampler"};
@@ -152,7 +153,6 @@ void MainWindow::buildMenus()
     file->addAction(QStringLiteral("Save As"), this, &MainWindow::saveProjectAs, QKeySequence::SaveAs);
     file->addSeparator();
     file->addAction(QStringLiteral("Import Audio..."), this, &MainWindow::importAudio);
-    file->addAction(QStringLiteral("Import MIDI..."), this, &MainWindow::importMidi);
     file->addAction(QStringLiteral("Export WAV..."), this, &MainWindow::exportWav);
     file->addSeparator();
     file->addAction(QStringLiteral("Exit"), qApp, &QApplication::quit);
@@ -186,21 +186,28 @@ void MainWindow::buildMenus()
 void MainWindow::connectUi()
 {
     connect(m_toolbar, &MainToolBar::toolChanged, this, &MainWindow::setTool);
-    connect(m_toolbar, &MainToolBar::snapToggled, m_editor, &PianoRollEditor::setSnapEnabled);
-    connect(m_toolbar, &MainToolBar::gridToggled, m_editor, &PianoRollEditor::setShowGrid);
+    connect(m_toolbar, &MainToolBar::snapToggled, this, [this](bool enabled) {
+        if (m_editor) m_editor->setSnapEnabled(enabled);
+    });
+    connect(m_toolbar, &MainToolBar::gridToggled, this, [this](bool enabled) {
+        if (m_editor) m_editor->setShowGrid(enabled);
+    });
     connect(m_toolbar, &MainToolBar::gridResolutionChanged, this, [this](int div) {
-        m_editor->setGridTicks(qMax<qint64>(1, qRound64(m_project->ppq() * 4.0 / div)));
+        if (m_editor && m_project) {
+            m_editor->setGridTicks(qMax<qint64>(1, qRound64(m_project->ppq() * 4.0 / div)));
+        }
     });
     connect(m_trackPanel, &TrackPanel::trackSelected, this, &MainWindow::selectTrack);
     connect(m_trackPanel, &TrackPanel::trackSettingsChanged, this, [this](int) {
         m_playback->invalidateCache();
-        m_editor->update();
-        m_arrangement->update();
+        m_editor->viewport()->update();
+        m_arrangement->viewport()->update();
         updateTitle();
     });
     connect(m_editor, &PianoRollEditor::documentChanged, this, [this] {
         m_playback->invalidateCache();
-        m_arrangement->update();
+        m_editor->viewport()->update();
+        m_arrangement->viewport()->update();
         updateTitle();
     });
     connect(m_editor, &PianoRollEditor::verticalPitchChanged, this,
@@ -209,6 +216,9 @@ void MainWindow::connectUi()
             m_editor, &PianoRollEditor::setKeyboardPitch);
     connect(m_arrangement, &ArrangementEditor::positionClicked,
             this, &MainWindow::seekFromTimeline);
+
+    connect(m_transport, &TransportBar::playPause, this, &MainWindow::togglePlay);
+    connect(m_transport, &TransportBar::stopPressed, this, &MainWindow::stopPlayback);
 
     connect(m_playback.get(), &PlaybackController::positionChanged, this,
             [this](qint64 ms) {
@@ -232,11 +242,14 @@ void MainWindow::refreshVoiceBanks()
     const QSettings settings;
     const QString configured = settings.value("voicebanks/path").toString();
     const auto exeDir = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString());
-    const auto projectRoot = m_project && !m_project->path().empty() ? m_project->path().parent_path() : exeDir.parent_path();
+    const auto projectRoot = m_project && !m_project->path().empty() ? m_project->path().parent_path() : exeDir;
     const auto cwd = std::filesystem::current_path();
-    std::vector<std::filesystem::path> roots = {
-        exeDir / "VoiceBanks", projectRoot / "VoiceBanks", cwd / "VoiceBanks"};
-    if (!configured.isEmpty()) roots.insert(roots.begin(), std::filesystem::path(configured.toStdWString()));
+
+    std::vector<std::filesystem::path> roots;
+    if (!configured.isEmpty()) roots.push_back(std::filesystem::path(configured.toStdWString()));
+    roots.push_back(exeDir / "VoiceBanks");
+    roots.push_back(projectRoot / "VoiceBanks");
+    roots.push_back(cwd / "VoiceBanks");
     m_singers.scan(roots);
 }
 
@@ -252,7 +265,14 @@ void MainWindow::applyDefaults(Project& project)
         if (!singerName.isEmpty()) {
             if (auto singer = m_singers.findByName(singerName)) track.setSingerPath(QString::fromStdWString(singer->path().wstring()));
         }
-        if (track.singerPath().isEmpty() && !m_singers.singers().empty()) track.setSingerPath(QString::fromStdWString(m_singers.singers().front()->path().wstring()));
+        if (track.singerPath().isEmpty()) {
+            for (const auto& singer : m_singers.singers()) {
+                if (singer->isValid()) {
+                    track.setSingerPath(QString::fromStdWString(singer->path().wstring()));
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -304,13 +324,8 @@ void MainWindow::importAudio()
         m_project->addAudioClip(clip);
     }
     m_audio.setBackingClips(m_project->audioClips());
-    m_arrangement->update();
+    m_arrangement->viewport()->update();
     updateTitle();
-}
-
-void MainWindow::importMidi()
-{
-    QMessageBox::information(this, QStringLiteral("MIDI"), QStringLiteral("MIDI import is not implemented in this branch; no non-functional placeholder is exposed as an editor feature."));
 }
 
 void MainWindow::exportWav()
@@ -322,7 +337,12 @@ void MainWindow::addTrack()
 {
     Track& track = m_project->addTrack();
     track.setPhonemizer(QSettings().value("defaults/phonemizer", "Default CV").toString());
-    if (!m_singers.singers().empty()) track.setSingerPath(QString::fromStdWString(m_singers.singers().front()->path().wstring()));
+    for (const auto& singer : m_singers.singers()) {
+        if (singer->isValid()) {
+            track.setSingerPath(QString::fromStdWString(singer->path().wstring()));
+            break;
+        }
+    }
     m_trackPanel->refresh();
     const int index = m_project->tracks().size() - 1;
     m_trackPanel->setCurrentRow(index);
@@ -393,7 +413,7 @@ void MainWindow::showPreferences()
     m_resampler = QSettings().value("renderer/moresampler", m_resampler).toString();
     if (m_resampler.isEmpty()) {
         const auto exeDir = std::filesystem::path(QCoreApplication::applicationDirPath().toStdWString());
-        m_resampler = findMoresampler(exeDir, exeDir.parent_path(), std::filesystem::current_path());
+        m_resampler = findMoresampler(exeDir, exeDir, std::filesystem::current_path());
     }
     m_renderer.setResampler(m_resampler);
     m_trackPanel->setSingerManager(&m_singers);
@@ -437,10 +457,12 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     if (!project) return;
     m_project = std::move(project);
     refreshVoiceBanks();
+    applyDefaults(*m_project);
     m_playback->setProject(m_project.get());
     m_audio.setBackingClips(m_project->audioClips());
 
-    if (auto* oldCentral = centralWidget()) oldCentral->deleteLater();
+    if (auto* oldCentral = centralWidget()) delete oldCentral;
+
     m_editor = new PianoRollEditor(m_project.get(), this);
     m_keyboard = new PianoKeyboard(this);
     m_keyboard->setRowHeight(22);
@@ -461,12 +483,12 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     setCentralWidget(splitter);
 
     if (auto* dock = findChild<QDockWidget*>(QStringLiteral("TrackDock"))) {
-        if (m_trackPanel) m_trackPanel->deleteLater();
+        if (m_trackPanel) delete m_trackPanel;
         m_trackPanel = new TrackPanel(m_project.get(), &m_singers, dock);
         dock->setWidget(m_trackPanel);
     }
     if (auto* dock = findChild<QDockWidget*>(QStringLiteral("ParameterDock"))) {
-        if (m_params) m_params->deleteLater();
+        if (m_params) delete m_params;
         m_params = new ParameterPanel(m_project.get(), dock);
         dock->setWidget(m_params);
     }
@@ -475,16 +497,27 @@ void MainWindow::setProject(std::unique_ptr<Project> project)
     m_trackPanel->refresh();
     m_trackPanel->setCurrentRow(0);
     m_editor->setActiveTrack(0);
+    m_editor->setGridTicks(QSettings().value("defaults/grid", 120).toLongLong());
 
     connect(m_trackPanel, &TrackPanel::trackSelected, this, &MainWindow::selectTrack);
+    connect(m_trackPanel, &TrackPanel::trackSettingsChanged, this, [this](int) {
+        m_playback->invalidateCache();
+        m_editor->viewport()->update();
+        m_arrangement->viewport()->update();
+    });
     connect(m_editor, &PianoRollEditor::documentChanged, this, [this] {
         m_playback->invalidateCache();
-        m_arrangement->update();
+        m_editor->viewport()->update();
+        m_arrangement->viewport()->update();
         updateTitle();
     });
     connect(m_editor, &PianoRollEditor::verticalPitchChanged, this, [this](int midi) { m_keyboard->setScrollPitch(midi); });
     connect(m_keyboard, &PianoKeyboard::keyPressed, m_editor, &PianoRollEditor::setKeyboardPitch);
     connect(m_arrangement, &ArrangementEditor::positionClicked, this, &MainWindow::seekFromTimeline);
+
+    // Keep the toolbar's state attached to the newly created editor.
+    const auto* gridAction = m_toolbar->findChild<QComboBox*>();
+    Q_UNUSED(gridAction);
 }
 
 qint64 MainWindow::currentTick() const
