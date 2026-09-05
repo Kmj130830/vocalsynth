@@ -7,6 +7,7 @@
 
 #include "Core/Project.h"
 
+class QEvent;
 class QLineEdit;
 
 namespace myvocal {
@@ -51,6 +52,7 @@ signals:
     void verticalPitchChanged(int topMidi);
 
 protected:
+    bool viewportEvent(QEvent* event) override;
     void paintEvent(QPaintEvent*) override;
     void resizeEvent(QResizeEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
