@@ -1,10 +1,9 @@
 #pragma once
 
+#include <QComboBox>
 #include <QToolBar>
 
 #include "Editor/PianoRollEditor.h"
-
-class QComboBox;
 
 namespace myvocal {
 
