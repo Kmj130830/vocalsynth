@@ -4,7 +4,6 @@
 #include <QString>
 
 class QComboBox;
-class QDoubleSpinBox;
 class QLineEdit;
 class QSpinBox;
 
@@ -22,17 +21,15 @@ public:
     QString voiceBanksPath() const;
     QString defaultSinger() const;
     QString defaultPhonemizer() const;
-    double defaultBpm() const;
     int defaultSnap() const;
     int defaultGrid() const;
 
 private:
-    QString* m_resampler;
+    QString* m_resampler{nullptr};
     QLineEdit* m_resamplerEdit{nullptr};
     QLineEdit* m_voiceBanksEdit{nullptr};
     QComboBox* m_singerCombo{nullptr};
     QComboBox* m_phonemizerCombo{nullptr};
-    QDoubleSpinBox* m_bpmSpin{nullptr};
     QSpinBox* m_snapSpin{nullptr};
     QSpinBox* m_gridSpin{nullptr};
 };
