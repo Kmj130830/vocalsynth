@@ -1,8 +1,10 @@
 #include "UI/MainToolBar.h"
+#include "Editor/PianoRollEditor.h"
 
 #include <QActionGroup>
 #include <QComboBox>
 #include <QLabel>
+#include <QTimer>
 
 namespace myvocal {
 
@@ -47,11 +49,13 @@ MainToolBar::MainToolBar(QWidget* parent)
     QAction* snap = addAction(QStringLiteral("Snap"));
     snap->setCheckable(true);
     snap->setChecked(true);
+    snap->setToolTip(QStringLiteral("Snap notes and edits to the selected grid"));
     connect(snap, &QAction::toggled, this, &MainToolBar::snapToggled);
 
     QAction* grid = addAction(QStringLiteral("Grid"));
     grid->setCheckable(true);
     grid->setChecked(true);
+    grid->setToolTip(QStringLiteral("Show or hide piano-roll grid"));
     connect(grid, &QAction::toggled, this, &MainToolBar::gridToggled);
 
     addWidget(new QLabel(QStringLiteral("Grid:"), this));
@@ -62,11 +66,50 @@ MainToolBar::MainToolBar(QWidget* parent)
     m_gridCombo->addItem(QStringLiteral("1/32"), 32);
     m_gridCombo->addItem(QStringLiteral("1/64"), 64);
     m_gridCombo->setCurrentIndex(2);
+    m_gridCombo->setMinimumWidth(72);
     m_gridCombo->setToolTip(QStringLiteral("Grid resolution"));
     addWidget(m_gridCombo);
 
     connect(m_gridCombo, &QComboBox::currentIndexChanged, this, [this](int index) {
         emit gridResolutionChanged(m_gridCombo->itemData(index).toInt());
+    });
+
+    // MainWindow recreates PianoRollEditor when New/Open loads a project.
+    // Keep a second, dynamic connection so these controls always affect the
+    // currently live editor instead of the editor object that was first built.
+    QTimer::singleShot(0, this, [this] {
+        auto findEditor = [this]() -> PianoRollEditor* {
+            QWidget* host = window();
+            return host ? host->findChild<PianoRollEditor*>() : nullptr;
+        };
+
+        connect(this, &MainToolBar::snapToggled, this,
+                [findEditor](bool enabled) {
+            if (auto* editor = findEditor()) {
+                editor->setSnapEnabled(enabled);
+                editor->viewport()->update();
+            }
+        });
+
+        connect(this, &MainToolBar::gridToggled, this,
+                [findEditor](bool enabled) {
+            if (auto* editor = findEditor()) {
+                editor->setShowGrid(enabled);
+                editor->viewport()->update();
+            }
+        });
+
+        connect(this, &MainToolBar::gridResolutionChanged, this,
+                [findEditor](int denominator) {
+            if (auto* editor = findEditor()) {
+                const auto* project = editor->property("project").value<Project*>();
+                if (project) {
+                    editor->setGridTicks(
+                        qMax<qint64>(1, qRound64(project->ppq() * 4.0 / denominator)));
+                }
+                editor->viewport()->update();
+            }
+        });
     });
 }
 
