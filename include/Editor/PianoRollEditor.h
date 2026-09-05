@@ -30,6 +30,7 @@ class PianoRollEditor final : public QAbstractScrollArea {
 public:
     explicit PianoRollEditor(Project* project, QWidget* parent = nullptr);
 
+    Project* project() const noexcept;
     void setActiveTrack(int index);
     int activeTrack() const noexcept;
     void setTool(EditTool tool);
