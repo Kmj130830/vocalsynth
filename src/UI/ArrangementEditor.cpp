@@ -358,9 +358,10 @@ void ArrangementEditor::paintEvent(QPaintEvent*)
                     for (int px = 0; px < r.width(); ++px) {
                         const int first = static_cast<int>((static_cast<double>(px) / r.width()) * peaks.size());
                         const int last = std::max(first + 1, static_cast<int>((static_cast<double>(px + 1) / r.width()) * peaks.size()));
+                        const int peakEnd = std::min(last, static_cast<int>(peaks.size()));
                         float minValue = 1.0f;
                         float maxValue = -1.0f;
-                        for (int k = first; k < std::min(last, peaks.size()); ++k) {
+                        for (int k = first; k < peakEnd; ++k) {
                             minValue = std::min(minValue, peaks[k].first);
                             maxValue = std::max(maxValue, peaks[k].second);
                         }
