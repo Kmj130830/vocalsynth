@@ -1,8 +1,6 @@
 #pragma once
 
 #include <QAbstractScrollArea>
-#include <QPoint>
-#include <QVector>
 
 #include "Core/Project.h"
 
@@ -28,6 +26,7 @@ protected:
     void resizeEvent(QResizeEvent*) override;
     void mousePressEvent(QMouseEvent*) override;
     void mouseMoveEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
 
 private:
     qint64 msAtX(int x) const;
