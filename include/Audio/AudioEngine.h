@@ -44,6 +44,7 @@ private:
     void destroySink();
     void stopBackingPlayers();
     void syncBackingPlayers(qint64 ms, bool start);
+    void applyBackingTarget(std::size_t index);
     qint64 pcmPositionMs() const;
     void startClock(qint64 baseMs);
     void stopClock();
@@ -65,6 +66,8 @@ private:
     QVector<AudioClip> m_clips;
     std::vector<std::unique_ptr<QMediaPlayer>> m_backingPlayers;
     std::vector<std::unique_ptr<QAudioOutput>> m_backingOutputs;
+    std::vector<qint64> m_backingTargetMs;
+    std::vector<bool> m_backingShouldPlay;
 
     QByteArray m_previewPcm;
     QAudioFormat m_previewFormat;
