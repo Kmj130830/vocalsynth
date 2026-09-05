@@ -19,7 +19,6 @@
 
 namespace myvocal {
 namespace {
-
 std::unique_ptr<IPhonemizer> makePhonemizer(const QString& name)
 {
     if (name == QStringLiteral("Japanese VCV")) return std::make_unique<JapaneseVCVPhonemizer>();
@@ -29,7 +28,6 @@ std::unique_ptr<IPhonemizer> makePhonemizer(const QString& name)
     if (name == QStringLiteral("Korean CBNN")) return std::make_unique<KoreanCBNNPhonemizer>();
     return std::make_unique<DefaultCVPhonemizer>();
 }
-
 }
 
 PhonemeStripEditor::PhonemeStripEditor(Project* project, QWidget* parent)
@@ -43,10 +41,21 @@ PhonemeStripEditor::PhonemeStripEditor(Project* project, QWidget* parent)
     updateScrollRanges();
 }
 
+void PhonemeStripEditor::setProject(Project* project)
+{
+    m_project = project;
+    m_activeTrack = 0;
+    m_playheadMs = 0;
+    m_draggingPlayhead = false;
+    updateScrollRanges();
+    viewport()->update();
+}
+
 void PhonemeStripEditor::setActiveTrack(int index)
 {
     const int count = m_project ? static_cast<int>(m_project->tracks().size()) : 0;
     m_activeTrack = count > 0 ? std::clamp(index, 0, count - 1) : 0;
+    updateScrollRanges();
     viewport()->update();
 }
 
