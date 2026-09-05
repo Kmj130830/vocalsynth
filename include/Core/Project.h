@@ -22,6 +22,13 @@ public:
     int timeSignatureDenominator() const noexcept;
     void setTimeSignature(int numerator, int denominator);
 
+    qint64 gridTicks() const noexcept;
+    void setGridTicks(qint64 ticks) noexcept;
+    bool snapEnabled() const noexcept;
+    void setSnapEnabled(bool enabled) noexcept;
+    bool gridVisible() const noexcept;
+    void setGridVisible(bool visible) noexcept;
+
     QVector<Track>& tracks() noexcept;
     const QVector<Track>& tracks() const noexcept;
     Track& addTrack();
@@ -47,6 +54,9 @@ private:
     TempoMap m_tempo;
     int m_tsN{4};
     int m_tsD{4};
+    qint64 m_gridTicks{120};
+    bool m_snapEnabled{true};
+    bool m_gridVisible{true};
     QVector<Track> m_tracks;
     QVector<AudioClip> m_audioClips;
     std::filesystem::path m_path;
