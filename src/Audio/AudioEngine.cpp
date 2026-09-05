@@ -159,17 +159,44 @@ void AudioEngine::load(const QString& path)
 void AudioEngine::stopBackingPlayers() { for (auto& player : m_backingPlayers) if (player) player->stop(); }
 void AudioEngine::setBackingClips(const QVector<AudioClip>& clips)
 {
-    stopBackingPlayers(); m_backingPlayers.clear(); m_backingOutputs.clear(); m_clips = clips;
+    stopBackingPlayers();
+    m_backingPlayers.clear();
+    m_backingOutputs.clear();
+    m_backingTargetMs.clear();
+    m_backingShouldPlay.clear();
+    m_clips = clips;
     for (const auto& clip : m_clips) {
         if (clip.muted || !QFileInfo(clip.path).isFile()) continue;
         auto player = std::make_unique<QMediaPlayer>();
         auto output = std::make_unique<QAudioOutput>();
         output->setVolume(std::clamp(clip.volume, 0.0, 2.0));
         player->setAudioOutput(output.get());
+        const std::size_t playerIndex = m_backingPlayers.size();
+        m_backingTargetMs.push_back(0);
+        m_backingShouldPlay.push_back(false);
+        connect(player.get(), &QMediaPlayer::mediaStatusChanged, this, [this, playerIndex](QMediaPlayer::MediaStatus status) {
+            if (playerIndex >= m_backingPlayers.size()) return;
+            if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia || status == QMediaPlayer::BufferingMedia) {
+                applyBackingTarget(playerIndex);
+            }
+        });
+        connect(player.get(), &QMediaPlayer::durationChanged, this, [this, playerIndex](qint64) {
+            if (playerIndex < m_backingPlayers.size()) applyBackingTarget(playerIndex);
+        });
         player->setSource(QUrl::fromLocalFile(clip.path));
         m_backingOutputs.push_back(std::move(output));
         m_backingPlayers.push_back(std::move(player));
     }
+}
+void AudioEngine::applyBackingTarget(std::size_t index)
+{
+    if (index >= m_backingPlayers.size() || index >= m_backingTargetMs.size()) return;
+    auto* player = m_backingPlayers[index].get();
+    if (!player) return;
+    const qint64 target = std::max<qint64>(0, m_backingTargetMs[index]);
+    if (player->duration() > 0) player->setPosition(std::min(target, player->duration()));
+    else player->setPosition(target);
+    if (index < m_backingShouldPlay.size() && m_backingShouldPlay[index]) player->play();
 }
 void AudioEngine::syncBackingPlayers(qint64 ms, bool start)
 {
@@ -177,11 +204,19 @@ void AudioEngine::syncBackingPlayers(qint64 ms, bool start)
     for (const auto& clip : m_clips) {
         if (clip.muted || !QFileInfo(clip.path).isFile()) continue;
         if (index >= m_backingPlayers.size()) break;
-        auto* player = m_backingPlayers[index++].get();
-        if (!player) continue;
+        auto* player = m_backingPlayers[index].get();
+        if (!player) { ++index; continue; }
         const qint64 local = ms - clip.startMs + clip.offsetMs;
-        if (local < 0) { player->pause(); player->setPosition(0); }
-        else { player->setPosition(local); if (start) player->play(); else player->pause(); }
+        m_backingTargetMs[index] = std::max<qint64>(0, local);
+        m_backingShouldPlay[index] = start && local >= 0;
+        if (local < 0) {
+            player->pause();
+            player->setPosition(0);
+        } else {
+            applyBackingTarget(index);
+            if (!start) player->pause();
+        }
+        ++index;
     }
 }
 qint64 AudioEngine::pcmPositionMs() const
@@ -219,14 +254,17 @@ void AudioEngine::pause()
     const qint64 current = position();
     if (m_sink) m_sink->suspend(); if (m_primaryPlayer) m_primaryPlayer->pause();
     for (auto& player : m_backingPlayers) if (player) player->pause();
+    for (auto& play : m_backingShouldPlay) play = false;
     m_seekMs = current; stopClock(); emit positionChanged(m_seekMs); emit playbackStateChanged(false);
 }
 void AudioEngine::stop(bool preservePosition)
 {
     const qint64 current = position();
-    if (m_sink) m_sink->stop(); if (m_primaryPlayer) m_primaryPlayer->stop(); stopBackingPlayers(); stopClock();
+    if (m_sink) m_sink->stop(); if (m_primaryPlayer) m_primaryPlayer->stop(); stopBackingPlayers();
+    for (auto& play : m_backingShouldPlay) play = false;
+    stopClock();
     if (preservePosition) seek(current);
-    else { m_seekMs = 0; m_seekByte = 0; if (m_buffer.isOpen()) m_buffer.seek(0); if (m_primaryPlayer) m_primaryPlayer->setPosition(0); emit positionChanged(0); }
+    else { m_seekMs = 0; m_seekByte = 0; if (m_buffer.isOpen()) m_buffer.seek(0); if (m_primaryPlayer) m_primaryPlayer->setPosition(0); for (auto& target : m_backingTargetMs) target = 0; emit positionChanged(0); }
     emit playbackStateChanged(false);
 }
 void AudioEngine::seek(qint64 ms)
