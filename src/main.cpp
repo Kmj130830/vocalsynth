@@ -30,32 +30,14 @@ QString applicationStyleSheet()
         }
         QToolButton:hover { background: #242830; border-color: #343a43; }
         QToolButton:checked { background: #29384a; border-color: #45627f; color: #edf4fb; }
-        QDockWidget {
-            background: #15171b;
-            color: #c8ced6;
-            titlebar-close-icon: none;
-            titlebar-normal-icon: none;
-        }
-        QDockWidget::title {
-            background: #181a1e;
-            border-bottom: 1px solid #30343a;
-            padding: 5px 8px;
-        }
-        QListWidget {
-            background: #121417;
-            border: 0;
-            outline: none;
-            padding: 3px;
-        }
+        QDockWidget { background: #15171b; color: #c8ced6; }
+        QDockWidget::title { background: #181a1e; border-bottom: 1px solid #30343a; padding: 5px 8px; }
+        QListWidget { background: #121417; border: 0; outline: none; padding: 3px; }
         QListWidget::item { border: 1px solid transparent; border-radius: 3px; padding: 4px; }
         QListWidget::item:hover { background: #1e2228; }
         QListWidget::item:selected { background: #27384a; border-color: #415d79; }
         QComboBox, QDoubleSpinBox, QLineEdit, QPushButton {
-            background: #20242a;
-            color: #dce1e8;
-            border: 1px solid #383e47;
-            border-radius: 3px;
-            padding: 3px 7px;
+            background: #20242a; color: #dce1e8; border: 1px solid #383e47; border-radius: 3px; padding: 3px 7px;
         }
         QComboBox:hover, QDoubleSpinBox:hover, QLineEdit:hover, QPushButton:hover { border-color: #4b5562; }
         QComboBox:focus, QDoubleSpinBox:focus, QLineEdit:focus, QPushButton:focus { border-color: #577897; }
