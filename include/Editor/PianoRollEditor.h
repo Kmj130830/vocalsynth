@@ -1,9 +1,11 @@
 #pragma once
 
 #include <QAbstractScrollArea>
+#include <QByteArray>
 #include <QHash>
 #include <QPoint>
 #include <QRect>
+#include <QPixmap>
 #include <QVector>
 
 #include "Core/Project.h"
@@ -77,6 +79,9 @@ private:
     void drawPitchPoint(Note& note, const QPoint& pos);
     void beginPitchDraw(const QPoint& pos);
     void finishPitchDraw();
+    QByteArray noteVisualKey(const Note& note) const;
+    QPixmap renderNotePixmap(const Note& note) const;
+    void clearNoteRenderCache();
     void invalidate();
     void updateScrollRanges();
 
@@ -117,6 +122,9 @@ private:
     qint64 m_rightDrawStart{0};
     int m_rightDrawPitch{60};
     qint64 m_pitchNoteId{-1};
+
+    QHash<qint64, QByteArray> m_noteCacheKeys;
+    QHash<qint64, QPixmap> m_noteCachePixmaps;
 };
 
 }
