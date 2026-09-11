@@ -252,19 +252,29 @@ void AudioEngine::play()
 void AudioEngine::pause()
 {
     const qint64 current = position();
-    if (m_sink) m_sink->suspend(); if (m_primaryPlayer) m_primaryPlayer->pause();
+    if (m_sink) m_sink->suspend();
+    if (m_primaryPlayer) m_primaryPlayer->pause();
     for (auto& player : m_backingPlayers) if (player) player->pause();
-    for (auto& play : m_backingShouldPlay) play = false;
+    for (std::size_t i = 0; i < m_backingShouldPlay.size(); ++i) m_backingShouldPlay[i] = false;
     m_seekMs = current; stopClock(); emit positionChanged(m_seekMs); emit playbackStateChanged(false);
 }
 void AudioEngine::stop(bool preservePosition)
 {
     const qint64 current = position();
-    if (m_sink) m_sink->stop(); if (m_primaryPlayer) m_primaryPlayer->stop(); stopBackingPlayers();
-    for (auto& play : m_backingShouldPlay) play = false;
+    if (m_sink) m_sink->stop();
+    if (m_primaryPlayer) m_primaryPlayer->stop();
+    stopBackingPlayers();
+    for (std::size_t i = 0; i < m_backingShouldPlay.size(); ++i) m_backingShouldPlay[i] = false;
     stopClock();
     if (preservePosition) seek(current);
-    else { m_seekMs = 0; m_seekByte = 0; if (m_buffer.isOpen()) m_buffer.seek(0); if (m_primaryPlayer) m_primaryPlayer->setPosition(0); for (auto& target : m_backingTargetMs) target = 0; emit positionChanged(0); }
+    else {
+        m_seekMs = 0;
+        m_seekByte = 0;
+        if (m_buffer.isOpen()) m_buffer.seek(0);
+        if (m_primaryPlayer) m_primaryPlayer->setPosition(0);
+        for (std::size_t i = 0; i < m_backingTargetMs.size(); ++i) m_backingTargetMs[i] = 0;
+        emit positionChanged(0);
+    }
     emit playbackStateChanged(false);
 }
 void AudioEngine::seek(qint64 ms)
