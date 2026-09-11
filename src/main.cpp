@@ -1,5 +1,4 @@
 #include <QApplication>
-#include <QPalette>
 #include <QSurfaceFormat>
 #include "App/MainWindow.h"
 #include "Utils/Logger.h"
@@ -8,26 +7,9 @@ namespace {
 QString applicationStyleSheet()
 {
     return QStringLiteral(R"CSS(
-        QMainWindow, QWidget {
-            background: #15171b;
-            color: #d8dde4;
-            font-family: "Segoe UI";
-            font-size: 10pt;
-        }
-        QToolBar {
-            background: #181a1e;
-            border: 0;
-            border-bottom: 1px solid #30343a;
-            spacing: 2px;
-            padding: 3px 6px;
-        }
-        QToolButton {
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 3px;
-            padding: 3px 7px;
-            color: #bfc5cd;
-        }
+        QMainWindow, QWidget { background: #15171b; color: #d8dde4; font-family: "Segoe UI"; font-size: 10pt; }
+        QToolBar { background: #181a1e; border: 0; border-bottom: 1px solid #30343a; spacing: 2px; padding: 3px 6px; }
+        QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 3px 7px; color: #bfc5cd; }
         QToolButton:hover { background: #242830; border-color: #343a43; }
         QToolButton:checked { background: #29384a; border-color: #45627f; color: #edf4fb; }
         QDockWidget { background: #15171b; color: #c8ced6; }
@@ -36,9 +18,7 @@ QString applicationStyleSheet()
         QListWidget::item { border: 1px solid transparent; border-radius: 3px; padding: 4px; }
         QListWidget::item:hover { background: #1e2228; }
         QListWidget::item:selected { background: #27384a; border-color: #415d79; }
-        QComboBox, QDoubleSpinBox, QLineEdit, QPushButton {
-            background: #20242a; color: #dce1e8; border: 1px solid #383e47; border-radius: 3px; padding: 3px 7px;
-        }
+        QComboBox, QDoubleSpinBox, QLineEdit, QPushButton { background: #20242a; color: #dce1e8; border: 1px solid #383e47; border-radius: 3px; padding: 3px 7px; }
         QComboBox:hover, QDoubleSpinBox:hover, QLineEdit:hover, QPushButton:hover { border-color: #4b5562; }
         QComboBox:focus, QDoubleSpinBox:focus, QLineEdit:focus, QPushButton:focus { border-color: #577897; }
         QPushButton:pressed { background: #293440; }
